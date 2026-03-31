@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQFlow | {{ service_type|capitalize }} Dispatch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        /* ===================== THEME SYSTEM ===================== */
+        :root {
+            {% if service_type == 'medical' %}
+            --accent: #ff3a3a; --accent-dim: rgba(255,58,58,0.12);
+            --accent-border: rgba(255,58,58,0.25); --icon: '🚑'; --label: 'MEDICAL';
+            {% elif service_type == 'fire' %}
+            --accent: #ff6b00; --accent-dim: rgba(255,107,0,0.12);
+            --accent-border: rgba(255,107,0,0.25); --icon: '🚒'; --label: 'FIRE';
+            {% else %}
+            --accent: #3a8eff; --accent-dim: rgba(58,142,255,0.12);
+            --accent-border: rgba(58,142,255,0.25); --icon: '🚓'; --label: 'POLICE';
+            {% endif %}
+            --bg: #060a0f; --surface: #0d1520; --border: rgba(255,255,255,0.07);
+            --text: #c8d8e8; --muted: #3a5060;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Rajdhani', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* HEADER */
+        header {
+            padding: 12px 24px; background: rgba(6,10,15,0.98);
+            border-bottom: 2px solid var(--accent);
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 1000; flex-shrink: 0;
+        }
+        .h-left { display: flex; align-items: center; gap: 16px; }
+        .h-service-badge {
+            background: var(--accent-dim); border: 1px solid var(--accent-border);
+            padding: 6px 14px; border-radius: 2px;
+            font-family: 'Orbitron', monospace; font-size: 0.8rem; font-weight: 700;
+            color: var(--accent); letter-spacing: 2px;
+        }
+        .h-title { font-family: 'Orbitron', monospace; font-size: 0.9rem; font-weight: 700; color: white; letter-spacing: 2px; }
+        .h-right { display: flex; align-items: center; gap: 16px; }
+        .h-status { display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--muted); }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 6px #00ff88; animation: blink 2s infinite; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+        .back-btn { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--muted); text-decoration: none; padding: 6px 12px; border: 1px solid var(--border); border-radius: 2px; transition: all 0.2s; }
+        .back-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+
+        /* LAYOUT */
+        .layout { display: flex; flex: 1; overflow: hidden; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 310px; background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            overflow: hidden; flex-shrink: 0;
+        }
+
+        .sidebar-section {
+            padding: 16px; border-bottom: 1px solid var(--border);
+        }
+        .section-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.62rem; letter-spacing: 3px;
+            color: var(--muted); margin-bottom: 12px;
+        }
+
+        /* Station list */
+        .station-list { overflow-y: auto; flex: 1; }
+        .station-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            display: flex; align-items: center; gap: 12px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .station-item:hover { background: rgba(255,255,255,0.03); }
+        .station-avail-indicator {
+            width: 4px; align-self: stretch; border-radius: 2px; flex-shrink: 0;
+        }
+        .avail-high { background: #00ff88; }
+        .avail-mid { background: var(--accent); }
+        .avail-low { background: #ff3a3a; }
+        .station-info { flex: 1; min-width: 0; }
+        .station-name { font-size: 0.85rem; font-weight: 600; color: white; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .station-coords { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--muted); }
+        .unit-badge {
+            font-family: 'Orbitron', monospace; font-size: 0.75rem; font-weight: 700;
+            color: var(--accent); background: var(--accent-dim); border: 1px solid var(--accent-border);
+            border-radius: 2px; padding: 4px 8px; flex-shrink: 0;
+        }
+
+        /* Dispatch panel */
+        .dispatch-panel { padding: 16px; border-top: 1px solid var(--border); }
+        .target-display {
+            background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+            border-radius: 3px; padding: 12px; margin-bottom: 14px;
+        }
+        .target-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .target-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; color: var(--muted); letter-spacing: 1px; }
+        .target-val { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: white; }
+        .target-val.active { color: var(--accent); }
+
+        .hint-text {
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem;
+            color: var(--muted); text-align: center; margin-bottom: 10px;
+            padding: 8px; background: rgba(255,255,255,0.02); border-radius: 2px;
+            border: 1px dashed rgba(255,255,255,0.06);
+        }
+
+        .btn-dispatch {
+            width: 100%; padding: 15px;
+            background: var(--accent); color: white;
+            border: none; border-radius: 3px;
+            font-family: 'Orbitron', monospace; font-size: 0.8rem; font-weight: 700;
+            letter-spacing: 2px; cursor: pointer; transition: all 0.25s;
+        }
+        .btn-dispatch:hover { filter: brightness(1.15); transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
+        .btn-dispatch:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        /* MAP */
+        #map { flex: 1; }
+
+        /* POPUP STYLE */
+        .leaflet-popup-content-wrapper {
+            background: #0d1520; border: 1px solid var(--accent-border);
+            color: var(--text); border-radius: 4px; font-family: 'Rajdhani', sans-serif;
+        }
+        .leaflet-popup-tip { background: #0d1520; }
+
+        /* TOAST */
+        #toast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
+            background: rgba(13,21,32,0.95); border: 1px solid var(--accent-border);
+            color: var(--text); padding: 14px 28px; border-radius: 4px;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;
+            z-index: 9999; transition: transform 0.4s ease;
+            border-left: 3px solid var(--accent);
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="h-left">
+            <div class="h-service-badge">
+                {% if service_type == 'medical' %}🚑{% elif service_type == 'fire' %}🚒{% else %}🚓{% endif %}
+                {{ service_type|upper }}
+            </div>
+            <div class="h-title">DISPATCH CONSOLE</div>
+        </div>
+        <div class="h-right">
+            <div class="h-status"><span class="status-dot"></span>SYSTEM ONLINE</div>
+            <a href="/dispatcher_hub" class="back-btn">← HUB</a>
+            <a href="/logout" class="back-btn">LOGOUT</a>
+        </div>
+    </header>
+
+    <div class="layout">
+
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <div class="section-label">▸ AVAILABLE STATIONS</div>
+            </div>
+
+            <div class="station-list">
+                {% for s in stations %}
+                <div class="station-item" onclick="panToStation({{ s.latitude }}, {{ s.longitude }}, '{{ s.name }}')">
+                    <div class="station-avail-indicator {% if s.vehicles_available >= 3 %}avail-high{% elif s.vehicles_available >= 1 %}avail-mid{% else %}avail-low{% endif %}"></div>
+                    <div class="station-info">
+                        <div class="station-name">{{ s.name }}</div>
+                        <div class="station-coords">{{ "%.4f"|format(s.latitude) }}, {{ "%.4f"|format(s.longitude) }}</div>
+                    </div>
+                    <div class="unit-badge">{{ s.vehicles_available or 0 }}</div>
+                </div>
+                {% else %}
+                <div style="padding: 20px; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: #ff3a3a;">NO STATIONS FOUND</div>
+                {% endfor %}
+            </div>
+
+            <!-- DISPATCH PANEL -->
+            <div class="dispatch-panel">
+                <div class="section-label">▸ INCIDENT TARGET</div>
+                <div class="target-display">
+                    <div class="target-row">
+                        <span class="target-label">LATITUDE</span>
+                        <span class="target-val" id="disp-lat">— Click Map —</span>
+                    </div>
+                    <div class="target-row">
+                        <span class="target-label">LONGITUDE</span>
+                        <span class="target-val" id="disp-lon">— Click Map —</span>
+                    </div>
+                </div>
+                <div class="hint-text">🖱 Click anywhere on the map to set incident location</div>
+                <button class="btn-dispatch" id="dispatch-btn" onclick="sendDispatch()" disabled>
+                    {% if service_type == 'medical' %}🚑{% elif service_type == 'fire' %}🚒{% else %}🚓{% endif %}
+                    DISPATCH {{ service_type|upper }}
+                </button>
+            </div>
+        </div>
+
+        <div id="map"></div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+        var serviceType = "{{ service_type }}";
+        var accentColor = "{{ '#ff3a3a' if service_type == 'medical' else ('#ff6b00' if service_type == 'fire' else '#3a8eff') }}";
+
+        // MAP INIT
+        var map = L.map('map').setView([12.310, 76.655], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap © Carto'
+        }).addTo(map);
+
+        // STATION MARKERS
+        var stations = {{ stations | tojson }};
+        stations.forEach(function(s) {
+            if (!s.latitude) return;
+            var iconHtml = serviceType === 'medical' ? '🏥' : (serviceType === 'fire' ? '🚒' : '🚔');
+            var icon = L.divIcon({
+                html: `<div style="font-size:22px;filter:drop-shadow(0 0 6px ${accentColor})">${iconHtml}</div>`,
+                iconSize: [30, 30], className: ''
+            });
+            var count = s.vehicles_available || 0;
+            L.marker([s.latitude, s.longitude], {icon})
+                .addTo(map)
+                .bindPopup(`
+                    <b style="color:${accentColor};font-family:Orbitron,monospace;font-size:0.8rem;letter-spacing:1px">${s.name}</b><br>
+                    <span style="font-family:monospace;font-size:0.75rem;color:#3a5060">Units Available: </span>
+                    <span style="font-family:Orbitron,monospace;font-size:0.85rem;color:${accentColor}">${count}</span>
+                `);
+        });
+
+        // MAP CLICK
+        var selectedLat, selectedLon, destMarker;
+        map.on('click', function(e) {
+            selectedLat = e.latlng.lat;
+            selectedLon = e.latlng.lng;
+
+            document.getElementById('disp-lat').textContent = selectedLat.toFixed(6);
+            document.getElementById('disp-lat').classList.add('active');
+            document.getElementById('disp-lon').textContent = selectedLon.toFixed(6);
+            document.getElementById('disp-lon').classList.add('active');
+            document.getElementById('dispatch-btn').disabled = false;
+
+            if (destMarker) map.removeLayer(destMarker);
+            var targetIcon = L.divIcon({
+                html: `<div style="font-size:26px;animation:pulse 1s infinite;filter:drop-shadow(0 0 8px red)">📍</div>`,
+                iconSize: [30, 30], className: ''
+            });
+            destMarker = L.marker([selectedLat, selectedLon], {icon: targetIcon})
+                .addTo(map)
+                .bindPopup('<span style="color:#ff3a3a;font-family:Orbitron,monospace;font-size:0.75rem">INCIDENT LOCATION</span>').openPopup();
+        });
+
+        function panToStation(lat, lon, name) {
+            map.setView([lat, lon], 16);
+        }
+
+        function showToast(msg, isError) {
+            var t = document.getElementById('toast');
+            t.textContent = (isError ? '⚠ ' : '✓ ') + msg;
+            t.style.borderLeftColor = isError ? '#ff3a3a' : '#00ff88';
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 4000);
+        }
+
+        function sendDispatch() {
+            if (!selectedLat) return;
+            var btn = document.getElementById('dispatch-btn');
+            btn.disabled = true; btn.textContent = '⏳ DISPATCHING...';
+
+            $.ajax({
+                url: '/dispatch_action', type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ lat: selectedLat, lon: selectedLon, type: serviceType }),
+                success: function(r) {
+                    showToast(r.message, r.status !== 'success');
+                    if (r.status === 'success') setTimeout(() => location.reload(), 2500);
+                    else { btn.disabled = false; btn.textContent = '🚨 DISPATCH ' + serviceType.toUpperCase(); }
+                },
+                error: function() { showToast('Connection error', true); btn.disabled = false; }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQFlow | Driver HUD</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        :root {
+            --accent:        {{ theme.accent }};
+            --accent2:       {{ theme.accent2 }};
+            --accent-dim:    {{ theme.accent_dim }};
+            --accent-border: {{ theme.accent_border }};
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Rajdhani',sans-serif; background:#060a0f; color:#c8d8e8; height:100vh; overflow:hidden; position:relative; }
+        #map { width:100vw; height:100vh; }
+
+        .hud-top {
+            position:absolute; top:0; left:0; right:0; z-index:1000;
+            padding:12px 24px;
+            background:linear-gradient(180deg,rgba(6,10,15,0.97) 0%,transparent 100%);
+            display:flex; justify-content:space-between; align-items:center;
+        }
+        .service-badge {
+            background:var(--accent-dim); border:1px solid var(--accent-border);
+            padding:8px 16px; border-radius:2px;
+            font-family:'Orbitron',monospace; font-size:0.75rem; font-weight:700;
+            color:var(--accent); letter-spacing:2px; display:flex; align-items:center; gap:8px;
+        }
+        .status-pill {
+            background:rgba(6,10,15,0.9); border:1px solid rgba(255,255,255,0.08);
+            border-radius:20px; padding:7px 16px;
+            font-family:'IBM Plex Mono',monospace; font-size:0.72rem;
+            display:flex; align-items:center; gap:8px; color:#3a5060;
+        }
+        .status-dot { width:8px; height:8px; border-radius:50%; }
+        .dot-standby { background:#3a5060; }
+        .dot-pending { background:#f1c40f; box-shadow:0 0 8px #f1c40f; animation:blink .8s infinite; }
+        .dot-active  { background:#00ff88; box-shadow:0 0 8px #00ff88; }
+        .dot-onscene { background:var(--accent); box-shadow:0 0 8px var(--accent); animation:blink .5s infinite; }
+        .dot-return  { background:#00aaff; box-shadow:0 0 8px #00aaff; }
+        .dot-done    { background:#00ff88; box-shadow:0 0 8px #00ff88; }
+        @keyframes blink { 50%{opacity:0.2;} }
+        .logout-btn { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:rgba(255,255,255,0.25); text-decoration:none; padding:6px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:2px; transition:all 0.2s; }
+        .logout-btn:hover { color:#ff3a3a; }
+
+        /* PHASE TRACKER (top-right) */
+        .phase-tracker {
+            position:absolute; top:70px; right:20px; z-index:1000;
+            background:rgba(13,21,32,0.95); border:1px solid rgba(255,255,255,0.07);
+            border-radius:6px; padding:14px 18px; min-width:220px;
+        }
+        .phase-step {
+            display:flex; align-items:center; gap:10px;
+            padding:6px 0; font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:#3a5060;
+        }
+        .phase-step.active { color:white; }
+        .phase-step.done   { color:#00ff88; }
+        .phase-dot { width:10px; height:10px; border-radius:50%; background:#1a2030; flex-shrink:0; }
+        .phase-step.active .phase-dot { background:var(--accent); box-shadow:0 0 6px var(--accent); }
+        .phase-step.done   .phase-dot { background:#00ff88; }
+        .phase-line { width:2px; height:16px; background:#1a2030; margin-left:4px; }
+        .phase-step.done + .phase-line { background:#00ff88; }
+
+        /* MISSION OVERLAY */
+        #mission-overlay {
+            position:absolute; inset:0; z-index:2000;
+            background:rgba(6,10,15,0.93);
+            display:none; flex-direction:column; justify-content:center; align-items:center;
+            backdrop-filter:blur(4px);
+        }
+        #mission-overlay.active { display:flex; }
+        .mission-card {
+            background:#0d1520; border:1px solid var(--accent-border);
+            border-radius:6px; padding:40px 48px; max-width:520px; width:90%;
+            position:relative; overflow:hidden; animation:cardIn .4s ease;
+        }
+        @keyframes cardIn { from{transform:scale(.9);opacity:0;} to{transform:scale(1);opacity:1;} }
+        .mission-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--accent); }
+        .mission-alert-header { display:flex; align-items:center; gap:14px; margin-bottom:28px; }
+        .alert-icon { font-size:2.5rem; animation:shake .5s infinite; }
+        @keyframes shake { 0%,100%{transform:rotate(-5deg);} 50%{transform:rotate(5deg);} }
+        .alert-eyebrow { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; letter-spacing:3px; color:var(--accent); margin-bottom:4px; }
+        .alert-title { font-family:'Orbitron',monospace; font-size:1.4rem; font-weight:900; color:white; letter-spacing:2px; }
+        .mission-fields { margin-bottom:28px; display:flex; flex-direction:column; gap:12px; }
+        .m-field { background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:3px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; }
+        .m-field-label { font-family:'IBM Plex Mono',monospace; font-size:0.62rem; color:#3a5060; letter-spacing:2px; }
+        .m-field-val { font-family:'IBM Plex Mono',monospace; font-size:0.85rem; font-weight:500; color:white; }
+        .m-field-val.accent { color:var(--accent); }
+        .btn-accept { width:100%; padding:18px; background:var(--accent); color:white; border:none; border-radius:3px; font-family:'Orbitron',monospace; font-size:0.9rem; font-weight:700; letter-spacing:3px; cursor:pointer; transition:all .25s; }
+        .btn-accept:hover { filter:brightness(1.15); transform:translateY(-2px); }
+        .btn-accept:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+
+        /* ON-SCENE PANEL */
+        #onscene-panel {
+            position:absolute; inset:0; z-index:1500;
+            background:rgba(6,10,15,0.88);
+            display:none; flex-direction:column; justify-content:center; align-items:center;
+            backdrop-filter:blur(3px);
+        }
+        #onscene-panel.active { display:flex; }
+        .onscene-card {
+            background:#0d1520; border:1px solid var(--accent-border);
+            border-radius:6px; padding:40px 48px; max-width:480px; width:90%;
+            text-align:center; position:relative; overflow:hidden;
+        }
+        .onscene-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--accent); animation:scanBar 2s linear infinite; }
+        @keyframes scanBar { 0%{left:-100%;right:100%;} 100%{left:100%;right:-100%;} }
+        .onscene-icon { font-size:4rem; margin-bottom:16px; animation:pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.1);} }
+        .onscene-title { font-family:'Orbitron',monospace; font-size:1.1rem; font-weight:700; color:var(--accent); letter-spacing:3px; margin-bottom:8px; }
+        .onscene-label { font-family:'IBM Plex Mono',monospace; font-size:0.8rem; color:#3a5060; margin-bottom:28px; }
+
+        /* LEAVE THE LOCATION BUTTON */
+        .btn-leave {
+            width:100%; padding:18px;
+            background:transparent; color:var(--accent);
+            border:2px solid var(--accent); border-radius:3px; cursor:pointer;
+            font-family:'Orbitron',monospace; font-size:0.9rem; font-weight:700;
+            letter-spacing:3px; transition:all .25s; margin-top:8px;
+            animation: leavePulse 1.5s ease-in-out infinite;
+        }
+        .btn-leave:hover { background:var(--accent); color:white; transform:translateY(-2px); box-shadow:0 12px 30px rgba(0,0,0,0.5); animation:none; }
+        .btn-leave:disabled { opacity:.4; cursor:not-allowed; animation:none; }
+        @keyframes leavePulse { 0%,100%{box-shadow:0 0 0 0 var(--accent-border);} 50%{box-shadow:0 0 0 8px transparent;} }
+
+        .time-at-scene {
+            font-family:'IBM Plex Mono',monospace; font-size:0.75rem;
+            color:#3a5060; margin-bottom:20px; letter-spacing:2px;
+        }
+        .time-val { color:var(--accent); font-size:0.9rem; }
+
+        /* LIVE BOTTOM PANEL */
+        #live-panel { position:absolute; bottom:0; left:0; right:0; z-index:1000; background:linear-gradient(0deg,rgba(6,10,15,0.97) 80%,transparent 100%); padding:20px 24px 18px; display:none; }
+        #live-panel.active { display:block; }
+        .live-grid { display:flex; gap:12px; justify-content:center; }
+        .live-card { background:rgba(13,21,32,0.95); border:1px solid rgba(255,255,255,0.07); border-radius:4px; padding:14px 20px; min-width:130px; text-align:center; position:relative; overflow:hidden; }
+        .live-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--accent); }
+        .live-val  { font-family:'Orbitron',monospace; font-size:1.6rem; font-weight:700; color:var(--accent); }
+        .live-unit { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:#3a5060; display:block; margin-top:2px; }
+        .live-lbl  { font-size:0.8rem; color:#3a5060; margin-top:4px; font-weight:600; }
+
+        /* PROGRESS BAR */
+        .progress-bar-wrap { position:absolute; bottom:0; left:0; right:0; height:4px; background:rgba(255,255,255,0.05); z-index:1001; }
+        .progress-bar-fill { height:100%; background:var(--accent); transition:width 1s ease; box-shadow:0 0 8px var(--accent); }
+    </style>
+</head>
+<body>
+
+    <div class="hud-top">
+        <div style="display:flex;align-items:center;gap:14px;">
+            <div class="service-badge">{{ theme.vehicle_emoji }} {{ theme.service_label }}</div>
+            <div class="status-pill">
+                <span class="status-dot dot-standby" id="status-dot"></span>
+                <span id="status-text">STANDBY</span>
+            </div>
+        </div>
+        <a href="/logout" class="logout-btn">LOGOUT</a>
+    </div>
+
+    <!-- PHASE TRACKER -->
+    <div class="phase-tracker">
+        <div class="phase-step" id="ph-depart">
+            <span class="phase-dot"></span>1. DEPART STATION
+        </div>
+        <div class="phase-line"></div>
+        <div class="phase-step" id="ph-enroute">
+            <span class="phase-dot"></span>2. EN ROUTE TO INCIDENT
+        </div>
+        <div class="phase-line"></div>
+        <div class="phase-step" id="ph-onscene">
+            <span class="phase-dot"></span>3. ON SCENE
+        </div>
+        <div class="phase-line"></div>
+        <div class="phase-step" id="ph-return">
+            <span class="phase-dot"></span>4. RETURNING TO BASE
+        </div>
+        <div class="phase-line"></div>
+        <div class="phase-step" id="ph-done">
+            <span class="phase-dot"></span>5. MISSION COMPLETE
+        </div>
+    </div>
+
+    <!-- MISSION INCOMING OVERLAY -->
+    <div id="mission-overlay">
+        <div class="mission-card">
+            <div class="mission-alert-header">
+                <span class="alert-icon">🚨</span>
+                <div>
+                    <div class="alert-eyebrow">▸ INCOMING MISSION ALERT</div>
+                    <div class="alert-title">MISSION RECEIVED</div>
+                </div>
+            </div>
+            <div class="mission-fields">
+                <div class="m-field"><span class="m-field-label">DISPATCHED FROM</span><span class="m-field-val accent" id="m-station">—</span></div>
+                <div class="m-field"><span class="m-field-label">INCIDENT LATITUDE</span><span class="m-field-val" id="m-lat">—</span></div>
+                <div class="m-field"><span class="m-field-label">INCIDENT LONGITUDE</span><span class="m-field-val" id="m-lon">—</span></div>
+                <div class="m-field"><span class="m-field-label">MISSION TYPE</span><span class="m-field-val accent">{{ theme.service_label }} RESPONSE</span></div>
+            </div>
+            <button class="btn-accept" id="accept-btn" onclick="confirmStart()">
+                🚦 LEFT THE STATION — CONFIRM
+            </button>
+        </div>
+    </div>
+
+    <!-- ON-SCENE PANEL -->
+    <div id="onscene-panel">
+        <div class="onscene-card">
+            <div class="onscene-icon" id="onscene-icon">{{ theme.vehicle_emoji }}</div>
+            <div class="onscene-title" id="onscene-title">AT INCIDENT LOCATION</div>
+            <div class="onscene-label" id="onscene-label">Working at scene…</div>
+            <div class="time-at-scene">TIME AT SCENE: <span class="time-val" id="scene-timer">00:00</span></div>
+            <button class="btn-leave" id="leave-btn" onclick="leaveScene()">
+                🚦 LEAVE THE LOCATION
+            </button>
+        </div>
+    </div>
+
+    <!-- LIVE BOTTOM PANEL -->
+    <div id="live-panel">
+        <div class="live-grid">
+            <div class="live-card"><div class="live-val" id="l-speed">0</div><span class="live-unit">KM/H</span><div class="live-lbl">SPEED</div></div>
+            <div class="live-card"><div class="live-val" id="l-progress">0%</div><span class="live-unit">LEG PROGRESS</span><div class="live-lbl">PROGRESS</div></div>
+            <div class="live-card"><div class="live-val" id="l-phase">—</div><span class="live-unit">CURRENT PHASE</span><div class="live-lbl">STATUS</div></div>
+        </div>
+    </div>
+
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-bar" style="width:0%"></div></div>
+    <div id="map"></div>
+
+    <script>
+        var stationID    = "{{ station_id }}";
+        var accentColor  = "{{ theme.accent }}";
+        var vehicleEmoji = "{{ theme.vehicle_emoji }}";
+
+        var map = L.map('map').setView([12.310, 76.655], 14);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+        var ambMarker, routePolyline, destMarker, stationMarker;
+        var missionShown   = false;
+        var routeLoaded    = false;
+        var lastPhase      = '';
+        var sceneStartTime = null;
+
+        function leaveScene() {
+            var btn = document.getElementById('leave-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ HEADING BACK…';
+            $.post('/driver_leave_scene', function(r) {
+                if (r.status === 'leaving') {
+                    document.getElementById('onscene-panel').classList.remove('active');
+                    document.getElementById('live-panel').classList.add('active');
+                    routeLoaded = false;   // reload polyline for return leg
+                    loadRoutePolyline('RETURNING TO BASE');
+                    setPhase('RETURNING TO BASE');
+                    document.getElementById('status-dot').className = 'status-dot dot-return';
+                    document.getElementById('status-text').textContent = 'RETURNING';
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = '🚦 LEAVE THE LOCATION';
+                }
+            }).fail(function() {
+                btn.disabled = false;
+                btn.textContent = '🚦 LEAVE THE LOCATION';
+            });
+        }
+
+        var vehicleIcon = L.divIcon({
+            html: '<div style="font-size:32px;filter:drop-shadow(0 0 10px '+accentColor+')">'+vehicleEmoji+'</div>',
+            iconSize:[36,36], className:''
+        });
+        var pinIcon = L.divIcon({
+            html: '<div style="font-size:28px;filter:drop-shadow(0 0 8px #ff3a3a)">🎯</div>',
+            iconSize:[32,32], className:''
+        });
+        var homeIcon = L.divIcon({
+            html: '<div style="font-size:28px;filter:drop-shadow(0 0 8px '+accentColor+')">🏠</div>',
+            iconSize:[32,32], className:''
+        });
+
+        function setPhase(ph) {
+            var phases = ['ph-depart','ph-enroute','ph-onscene','ph-return','ph-done'];
+            var order  = {
+                'PENDING_DRIVER':        0,
+                'EN ROUTE TO INCIDENT':  1,
+                'LOADING PATIENT':       2,
+                'EXTINGUISHING FIRE':    2,
+                'RESOLVING INCIDENT':    2,
+                'RETURNING TO BASE':     3,
+                'MISSION COMPLETE':      4,
+            };
+            var idx = order[ph] !== undefined ? order[ph] : -1;
+            phases.forEach(function(id, i) {
+                var el = document.getElementById(id);
+                el.classList.remove('active','done');
+                if (i < idx)  el.classList.add('done');
+                if (i === idx) el.classList.add('active');
+            });
+        }
+
+        function loadRoutePolyline(phase) {
+            $.get('/get_route', function(data) {
+                if (data.waypoints && data.waypoints.length > 1) {
+                    if (routePolyline) map.removeLayer(routePolyline);
+                    var color = (data.phase && data.phase.includes('RETURN')) ? '#00aaff' : accentColor;
+                    routePolyline = L.polyline(data.waypoints, {
+                        color:color, weight:5, opacity:0.85
+                    }).addTo(map);
+                    if (!ambMarker) map.fitBounds(routePolyline.getBounds(), {padding:[60,60]});
+                    routeLoaded = true;
+                }
+            });
+        }
+
+        function confirmStart() {
+            var btn = document.getElementById('accept-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ FETCHING ROAD ROUTE...';
+            $.post('/driver_start_mission', function(r) {
+                if (r.status === 'started') {
+                    loadRoutePolyline();
+                    document.getElementById('mission-overlay').classList.remove('active');
+                    document.getElementById('live-panel').classList.add('active');
+                    setPhase('EN ROUTE TO INCIDENT');
+                } else {
+                    alert('Error: '+(r.message||'Unknown'));
+                    btn.disabled = false;
+                    btn.textContent = '🚦 LEFT THE STATION — CONFIRM';
+                }
+            }).fail(function() {
+                alert('Server error. Try again.');
+                btn.disabled = false;
+                btn.textContent = '🚦 LEFT THE STATION — CONFIRM';
+            });
+        }
+
+        setInterval(function() {
+            $.get('/get_status?t='+Date.now(), function(data) {
+                if (data.station_id != stationID) return;
+
+                var phase = data.phase || data.ambulance_status || '';
+
+                // ── PENDING ──
+                if (phase === 'PENDING_DRIVER' && !missionShown) {
+                    missionShown = true;
+                    document.getElementById('mission-overlay').classList.add('active');
+                    document.getElementById('status-dot').className = 'status-dot dot-pending';
+                    document.getElementById('status-text').textContent = 'MISSION PENDING';
+                    document.getElementById('m-station').textContent = data.station_name||'—';
+                    document.getElementById('m-lat').textContent = data.dest_lat ? data.dest_lat.toFixed(6) : '—';
+                    document.getElementById('m-lon').textContent = data.dest_lon ? data.dest_lon.toFixed(6) : '—';
+                    if (data.start_lat) map.setView([data.start_lat, data.start_lon], 15);
+                    setPhase('PENDING_DRIVER');
+                }
+
+                // ── EN ROUTE TO INCIDENT ──
+                else if (phase === 'EN ROUTE TO INCIDENT') {
+                    document.getElementById('status-dot').className = 'status-dot dot-active';
+                    document.getElementById('status-text').textContent = 'EN ROUTE';
+                    document.getElementById('live-panel').classList.add('active');
+                    document.getElementById('mission-overlay').classList.remove('active');
+                    document.getElementById('onscene-panel').classList.remove('active');
+                    setPhase('EN ROUTE TO INCIDENT');
+                    if (!routeLoaded || lastPhase !== phase) { routeLoaded = false; loadRoutePolyline(phase); }
+
+                    var spd  = Math.round(data.ambulance_speed||0);
+                    var prog = (data.progress_pct||0).toFixed(1);
+                    document.getElementById('l-speed').textContent    = spd;
+                    document.getElementById('l-progress').textContent = prog+'%';
+                    document.getElementById('l-phase').textContent    = 'OUTBOUND';
+                    document.getElementById('prog-bar').style.width   = prog+'%';
+
+                    if (!destMarker && data.dest_lat)
+                        destMarker = L.marker([data.dest_lat,data.dest_lon],{icon:pinIcon}).addTo(map).bindPopup('🎯 INCIDENT').openPopup();
+                    if (!stationMarker && data.start_lat)
+                        stationMarker = L.marker([data.start_lat,data.start_lon],{icon:homeIcon}).addTo(map).bindPopup('🏠 YOUR STATION');
+                    if (data.lat && data.lon) {
+                        var pos=[data.lat,data.lon];
+                        if (ambMarker) ambMarker.setLatLng(pos);
+                        else ambMarker = L.marker(pos,{icon:vehicleIcon}).addTo(map);
+                        map.panTo(pos,{animate:true,duration:0.8});
+                    }
+                }
+
+                // ── AT INCIDENT LOCATION — wait for leave button ──
+                else if (phase === 'AT INCIDENT LOCATION') {
+                    document.getElementById('status-dot').className = 'status-dot dot-onscene';
+                    document.getElementById('status-text').textContent = 'AT SCENE';
+                    document.getElementById('live-panel').classList.remove('active');
+                    document.getElementById('onscene-panel').classList.add('active');
+                    setPhase(phase);
+
+                    var onsceneLabels = {
+                        '{{ theme.service_label }}': data.onscene_label || 'Working at scene…'
+                    };
+                    document.getElementById('onscene-label').textContent = data.onscene_label || 'Working at scene…';
+
+                    // Start scene timer on first arrival
+                    if (!sceneStartTime) sceneStartTime = Date.now();
+                    var elapsed = Math.floor((Date.now() - sceneStartTime) / 1000);
+                    var mm = String(Math.floor(elapsed/60)).padStart(2,'0');
+                    var ss = String(elapsed % 60).padStart(2,'0');
+                    document.getElementById('scene-timer').textContent = mm+':'+ss;
+
+                    if (data.dest_lat && data.lon) {
+                        var pos = [data.dest_lat, data.dest_lon];
+                        if (ambMarker) ambMarker.setLatLng(pos);
+                    }
+                }
+
+                // ── RETURNING TO BASE ──
+                else if (phase === 'RETURNING TO BASE') {
+                    document.getElementById('status-dot').className = 'status-dot dot-return';
+                    document.getElementById('status-text').textContent = 'RETURNING';
+                    document.getElementById('live-panel').classList.add('active');
+                    document.getElementById('onscene-panel').classList.remove('active');
+                    setPhase('RETURNING TO BASE');
+                    if (lastPhase !== phase) { routeLoaded = false; loadRoutePolyline(phase); }
+
+                    var spd  = Math.round(data.ambulance_speed||0);
+                    var prog = (data.progress_pct||0).toFixed(1);
+                    document.getElementById('l-speed').textContent    = spd;
+                    document.getElementById('l-progress').textContent = prog+'%';
+                    document.getElementById('l-phase').textContent    = 'RETURN';
+                    document.getElementById('prog-bar').style.width   = prog+'%';
+
+                    if (data.lat && data.lon) {
+                        var pos=[data.lat,data.lon];
+                        if (ambMarker) ambMarker.setLatLng(pos);
+                        else ambMarker = L.marker(pos,{icon:vehicleIcon}).addTo(map);
+                        map.panTo(pos,{animate:true,duration:0.8});
+                    }
+                }
+
+                // ── MISSION COMPLETE ──
+                else if (phase === 'MISSION COMPLETE') {
+                    document.getElementById('status-dot').className = 'status-dot dot-done';
+                    document.getElementById('status-text').textContent = '✓ MISSION COMPLETE';
+                    document.getElementById('live-panel').classList.remove('active');
+                    document.getElementById('onscene-panel').classList.remove('active');
+                    document.getElementById('prog-bar').style.width = '100%';
+                    setPhase('MISSION COMPLETE');
+                    if (ambMarker && data.start_lat) ambMarker.setLatLng([data.start_lat, data.start_lon]);
+                }
+
+                lastPhase = phase;
+            });
+        }, 1000);
+    </script>
+</body>
+</html>

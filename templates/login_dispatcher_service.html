@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQFlow | {{ service_label }} Dispatcher Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+    <!-- All theme values injected by Flask as plain strings — no Jinja inside CSS -->
+    <style>
+        :root {
+            --accent:        {{ theme.accent }};
+            --accent2:       {{ theme.accent2 }};
+            --accent-dim:    {{ theme.accent_dim }};
+            --accent-border: {{ theme.accent_border }};
+        }
+    </style>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: #060a0f;
+            color: #c8d8e8;
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* LEFT PANEL */
+        .left-panel {
+            flex: 1;
+            background: #080e16;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: 60px 48px;
+            position: relative; overflow: hidden;
+        }
+
+        /* Animated grid */
+        .left-panel::before {
+            content: '';
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(var(--accent-dim) 1px, transparent 1px),
+                linear-gradient(90deg, var(--accent-dim) 1px, transparent 1px);
+            background-size: 40px 40px;
+            animation: gridDrift 18s linear infinite;
+            opacity: 0.6;
+        }
+        @keyframes gridDrift { to { background-position: 40px 40px; } }
+
+        /* Radar rings */
+        .radar-wrap {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+        .radar-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid var(--accent-border);
+            animation: radarPulse 3s ease-out infinite;
+        }
+        .radar-ring:nth-child(1) { width: 140px; height: 140px; animation-delay: 0s; }
+        .radar-ring:nth-child(2) { width: 260px; height: 260px; animation-delay: 0.8s; }
+        .radar-ring:nth-child(3) { width: 400px; height: 400px; animation-delay: 1.6s; }
+        @keyframes radarPulse { 0% { opacity: 0.6; transform: scale(0.8); } 100% { opacity: 0; transform: scale(1.2); } }
+
+        .left-content { position: relative; z-index: 2; text-align: center; max-width: 360px; }
+
+        .service-icon {
+            font-size: 4rem; margin-bottom: 20px;
+            filter: drop-shadow(0 0 20px var(--accent));
+            animation: iconFloat 3s ease-in-out infinite;
+        }
+        @keyframes iconFloat { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+
+        .service-type-label {
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem;
+            letter-spacing: 4px; color: var(--accent); margin-bottom: 8px;
+        }
+        .service-name {
+            font-family: 'Orbitron', monospace; font-size: 1.8rem; font-weight: 900;
+            color: white; letter-spacing: 3px; margin-bottom: 6px;
+        }
+        .service-sub {
+            font-family: 'Rajdhani', sans-serif; font-size: 1rem;
+            color: #3a5060; margin-bottom: 40px;
+        }
+
+        .info-list { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+        .info-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 14px;
+            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 3px;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: #607080;
+        }
+        .info-item::before { content: '▸'; color: var(--accent); }
+
+        .hotline-badge {
+            margin-top: 32px;
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 10px 20px;
+            background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 3px;
+            font-family: 'Orbitron', monospace; font-size: 1rem; font-weight: 700;
+            color: var(--accent); letter-spacing: 3px;
+        }
+
+        /* RIGHT PANEL */
+        .right-panel {
+            width: 480px;
+            background: #0d1520;
+            display: flex; flex-direction: column; justify-content: center;
+            padding: 60px 48px;
+            border-left: 1px solid rgba(255,255,255,0.06);
+            position: relative;
+        }
+        .right-panel::before {
+            content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 3px;
+            background: linear-gradient(180deg, transparent 0%, var(--accent) 30%, var(--accent) 70%, transparent 100%);
+        }
+
+        .back-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem;
+            color: #3a5060; text-decoration: none; letter-spacing: 2px;
+            margin-bottom: 40px; transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent); }
+
+        .login-eyebrow {
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem;
+            letter-spacing: 3px; color: var(--accent); margin-bottom: 10px;
+        }
+        .login-title {
+            font-family: 'Orbitron', monospace; font-size: 1.5rem; font-weight: 900;
+            color: white; letter-spacing: 2px; margin-bottom: 6px;
+        }
+        .login-sub {
+            font-size: 0.9rem; color: #3a5060; margin-bottom: 40px;
+        }
+
+        /* Error box */
+        .error-box {
+            background: rgba(255,58,58,0.08); border: 1px solid rgba(255,58,58,0.25);
+            border-radius: 3px; padding: 12px 16px; margin-bottom: 24px;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: #ff6b6b;
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        /* Form */
+        .form-group { margin-bottom: 20px; }
+        .form-label {
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem;
+            letter-spacing: 2px; color: #3a5060; display: block; margin-bottom: 8px;
+        }
+        .input-wrap { position: relative; }
+        .input-icon {
+            position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+            font-size: 0.9rem; opacity: 0.4;
+        }
+        .form-input {
+            width: 100%; padding: 14px 14px 14px 40px;
+            background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 3px; color: #c8d8e8;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem;
+            transition: border-color 0.2s, box-shadow 0.2s; outline: none;
+        }
+        .form-input:focus {
+            border-color: var(--accent-border);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+        .form-input::placeholder { color: #2a3a4a; }
+
+        .btn-login {
+            width: 100%; padding: 16px;
+            background: var(--accent); color: white;
+            border: none; border-radius: 3px; cursor: pointer;
+            font-family: 'Orbitron', monospace; font-size: 0.85rem;
+            font-weight: 700; letter-spacing: 3px;
+            transition: all 0.25s; position: relative; overflow: hidden;
+            margin-top: 8px;
+        }
+        .btn-login::before {
+            content: ''; position: absolute;
+            top: 0; left: -100%; width: 60%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            transition: left 0.4s;
+        }
+        .btn-login:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
+        .btn-login:hover::before { left: 150%; }
+
+        .login-footer {
+            margin-top: 32px; padding-top: 24px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem;
+            color: #1e3040; text-align: center; letter-spacing: 1px;
+        }
+
+        @media (max-width: 900px) {
+            .left-panel { display: none; }
+            .right-panel { width: 100%; border-left: none; }
+            .right-panel::before { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+        <div class="radar-wrap">
+            <div class="radar-ring"></div>
+            <div class="radar-ring"></div>
+            <div class="radar-ring"></div>
+        </div>
+        <div class="left-content">
+            <div class="service-icon">{{ theme.icon }}</div>
+            <div class="service-type-label">▸ DISPATCHER ACCESS</div>
+            <div class="service-name">{{ service_label|upper }}</div>
+            <div class="service-sub">{{ theme.tagline }}</div>
+
+            <div class="info-list">
+                <div class="info-item">{{ theme.stat1 }}</div>
+                <div class="info-item">{{ theme.stat2 }}</div>
+                <div class="info-item">{{ theme.stat3 }}</div>
+            </div>
+
+            <div class="hotline-badge">
+                📞 EMERGENCY HOTLINE: {{ theme.hotline }}
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+        <a href="/dispatcher_select" class="back-link">← BACK TO SERVICE SELECTION</a>
+
+        <div class="login-eyebrow">▸ SECURE LOGIN</div>
+        <div class="login-title">{{ service_label|upper }}<br>DISPATCHER</div>
+        <div class="login-sub">Enter your credentials to access the {{ service_label }} dispatch console</div>
+
+        {% if error %}
+        <div class="error-box">⚠ {{ error }}</div>
+        {% endif %}
+
+        <form method="POST">
+            <div class="form-group">
+                <label class="form-label">DISPATCHER ID</label>
+                <div class="input-wrap">
+                    <span class="input-icon">👤</span>
+                    <input type="text" name="username" class="form-input"
+                           placeholder="Enter your dispatcher username" required autocomplete="off">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">PASSWORD</label>
+                <div class="input-wrap">
+                    <span class="input-icon">🔒</span>
+                    <input type="password" name="password" class="form-input"
+                           placeholder="Enter your password" required>
+                </div>
+            </div>
+            <button type="submit" class="btn-login">
+                ACCESS {{ service_label|upper }} DISPATCH →
+            </button>
+        </form>
+
+        <div class="login-footer">
+            RESQFLOW v2.0 · {{ service_label|upper }} DISPATCH PORTAL · ALL SESSIONS LOGGED
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQFlow | Emergency Response System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #060a0f;
+            --surface: #0d1520;
+            --border: rgba(100,200,255,0.12);
+            --dispatcher-accent: #00d4ff;
+            --driver-accent: #ff3a3a;
+            --monitor-accent: #f1c40f;
+            --text: #c8d8e8;
+            --muted: #4a6070;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            cursor: default;
+        }
+
+        /* === ANIMATED GRID BACKGROUND === */
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0;
+            background-image:
+                linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+            background-size: 60px 60px;
+            animation: gridDrift 20s linear infinite;
+        }
+        @keyframes gridDrift { from { background-position: 0 0; } to { background-position: 60px 60px; } }
+
+        /* === RADAR GLOW === */
+        .radar-glow {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 800px; height: 800px;
+            background: radial-gradient(circle, rgba(0,212,255,0.06) 0%, transparent 70%);
+            z-index: 0;
+            animation: radarPulse 4s ease-in-out infinite;
+        }
+        @keyframes radarPulse {
+            0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        /* === SCAN LINE === */
+        .scan-line {
+            position: fixed; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(0,212,255,0.6), transparent);
+            z-index: 1;
+            animation: scan 8s linear infinite;
+        }
+        @keyframes scan { from { top: 0; } to { top: 100vh; } }
+
+        /* === HEADER STATUS BAR === */
+        .status-bar {
+            position: fixed; top: 0; left: 0; right: 0;
+            padding: 12px 30px;
+            background: rgba(6,10,15,0.95);
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+        .status-bar .logo {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.1rem; font-weight: 800;
+            color: var(--dispatcher-accent);
+            letter-spacing: 3px;
+        }
+        .status-indicators { display: flex; gap: 20px; align-items: center; }
+        .indicator { display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot.online { background: #00ff88; box-shadow: 0 0 6px #00ff88; animation: blink 2s infinite; }
+        .dot.alert { background: #ff3a3a; box-shadow: 0 0 6px #ff3a3a; }
+        .dot.warn { background: #f1c40f; box-shadow: 0 0 6px #f1c40f; }
+        @keyframes blink { 50% { opacity: 0.4; } }
+
+        /* === MAIN LAYOUT === */
+        .main {
+            position: relative; z-index: 10;
+            min-height: 100vh;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            padding: 120px 40px 60px;
+        }
+
+        /* === HERO TEXT === */
+        .hero-eyebrow {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem; letter-spacing: 5px;
+            color: var(--dispatcher-accent);
+            margin-bottom: 16px;
+            opacity: 0; animation: fadeUp 0.6s ease forwards 0.2s;
+        }
+
+        .hero-title {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -2px;
+            margin-bottom: 8px;
+            opacity: 0; animation: fadeUp 0.6s ease forwards 0.4s;
+        }
+
+        .hero-title .res { color: var(--driver-accent); }
+        .hero-title .q { color: #ff6b00; }
+        .hero-title .flow { color: var(--dispatcher-accent); }
+
+        .hero-subtitle {
+            font-size: 1.1rem; letter-spacing: 2px;
+            color: var(--muted); margin-bottom: 10px;
+            font-weight: 500;
+            opacity: 0; animation: fadeUp 0.6s ease forwards 0.6s;
+        }
+
+        .hero-tagline {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem; color: rgba(0,212,255,0.5);
+            letter-spacing: 1px; margin-bottom: 60px;
+            opacity: 0; animation: fadeUp 0.6s ease forwards 0.7s;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* === DIVIDER === */
+        .divider {
+            width: 300px; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--dispatcher-accent), transparent);
+            margin: 0 auto 50px;
+            opacity: 0; animation: fadeUp 0.6s ease forwards 0.8s;
+        }
+
+        /* === ROLE CARDS === */
+        .cards-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem; letter-spacing: 4px;
+            color: var(--muted); text-align: center;
+            margin-bottom: 30px;
+            opacity: 0; animation: fadeUp 0.6s ease forwards 0.9s;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 320px);
+            gap: 24px;
+            opacity: 0; animation: fadeUp 0.7s ease forwards 1s;
+        }
+
+        .role-card {
+            position: relative;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 40px 32px;
+            text-decoration: none;
+            color: var(--text);
+            overflow: hidden;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+            cursor: pointer;
+            display: block;
+        }
+
+        .role-card::before {
+            content: '';
+            position: absolute; inset: 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .role-card::after {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Dispatcher theme */
+        .card-dispatcher::before { background: linear-gradient(135deg, rgba(0,212,255,0.06) 0%, transparent 60%); }
+        .card-dispatcher::after { background: var(--dispatcher-accent); }
+        .card-dispatcher:hover { border-color: rgba(0,212,255,0.5); transform: translateY(-6px); }
+        .card-dispatcher:hover::before { opacity: 1; }
+        .card-dispatcher .card-accent { color: var(--dispatcher-accent); }
+        .card-dispatcher .card-icon-bg { background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.2); }
+        .card-dispatcher .btn-access { background: rgba(0,212,255,0.15); border-color: rgba(0,212,255,0.4); color: var(--dispatcher-accent); }
+        .card-dispatcher:hover .btn-access { background: var(--dispatcher-accent); color: #000; }
+
+        /* Driver theme */
+        .card-driver::before { background: linear-gradient(135deg, rgba(255,58,58,0.06) 0%, transparent 60%); }
+        .card-driver::after { background: var(--driver-accent); }
+        .card-driver:hover { border-color: rgba(255,58,58,0.5); transform: translateY(-6px); }
+        .card-driver:hover::before { opacity: 1; }
+        .card-driver .card-accent { color: var(--driver-accent); }
+        .card-driver .card-icon-bg { background: rgba(255,58,58,0.1); border: 1px solid rgba(255,58,58,0.2); }
+        .card-driver .btn-access { background: rgba(255,58,58,0.15); border-color: rgba(255,58,58,0.4); color: var(--driver-accent); }
+        .card-driver:hover .btn-access { background: var(--driver-accent); color: #fff; }
+
+        /* Monitor theme */
+        .card-monitor::before { background: linear-gradient(135deg, rgba(241,196,15,0.06) 0%, transparent 60%); }
+        .card-monitor::after { background: var(--monitor-accent); }
+        .card-monitor:hover { border-color: rgba(241,196,15,0.5); transform: translateY(-6px); }
+        .card-monitor:hover::before { opacity: 1; }
+        .card-monitor .card-accent { color: var(--monitor-accent); }
+        .card-monitor .card-icon-bg { background: rgba(241,196,15,0.1); border: 1px solid rgba(241,196,15,0.2); }
+        .card-monitor .btn-access { background: rgba(241,196,15,0.15); border-color: rgba(241,196,15,0.4); color: var(--monitor-accent); }
+        .card-monitor:hover .btn-access { background: var(--monitor-accent); color: #000; }
+
+        .card-corner {
+            position: absolute; top: 12px; right: 12px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.6rem; color: var(--muted); letter-spacing: 1px;
+        }
+
+        .card-id {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem; color: var(--muted);
+            margin-bottom: 24px; letter-spacing: 2px;
+        }
+
+        .card-icon-bg {
+            width: 64px; height: 64px; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; margin-bottom: 24px;
+        }
+
+        .card-role-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 1rem; font-weight: 700;
+            letter-spacing: 2px; margin-bottom: 8px;
+        }
+        .card-accent { }
+
+        .card-desc {
+            font-size: 0.9rem; color: var(--muted);
+            line-height: 1.5; font-weight: 400;
+            margin-bottom: 28px;
+        }
+
+        .card-specs {
+            display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap;
+        }
+        .spec-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem; padding: 3px 8px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 2px; color: var(--muted);
+        }
+
+        .btn-access {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 12px 24px; font-family: 'Orbitron', monospace;
+            font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
+            border: 1px solid; border-radius: 2px;
+            transition: all 0.25s ease; text-decoration: none;
+            width: 100%; justify-content: center;
+        }
+
+        /* === BOTTOM STATUS === */
+        .bottom-strip {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            padding: 10px 30px;
+            background: rgba(6,10,15,0.95);
+            border-top: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 100;
+        }
+        .bottom-strip span {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem; color: var(--muted);
+        }
+        .bottom-strip .version { color: var(--dispatcher-accent); }
+
+        /* corner bracket decorations */
+        .bracket-tl, .bracket-br {
+            position: absolute; width: 20px; height: 20px;
+        }
+        .bracket-tl { top: 16px; left: 16px; border-top: 2px solid; border-left: 2px solid; opacity: 0.4; }
+        .bracket-br { bottom: 16px; right: 16px; border-bottom: 2px solid; border-right: 2px solid; opacity: 0.4; }
+        .card-dispatcher .bracket-tl, .card-dispatcher .bracket-br { border-color: var(--dispatcher-accent); }
+        .card-driver .bracket-tl, .card-driver .bracket-br { border-color: var(--driver-accent); }
+        .card-monitor .bracket-tl, .card-monitor .bracket-br { border-color: var(--monitor-accent); }
+
+        @media (max-width: 1080px) {
+            .card-grid { grid-template-columns: repeat(2, 1fr); max-width: 700px; }
+        }
+        @media (max-width: 700px) {
+            .card-grid { grid-template-columns: 1fr; max-width: 360px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-grid"></div>
+    <div class="radar-glow"></div>
+    <div class="scan-line"></div>
+
+    <!-- STATUS BAR -->
+    <div class="status-bar">
+        <div class="logo">RESQFLOW</div>
+        <div class="status-indicators">
+            <div class="indicator"><span class="dot online"></span>SYSTEM ONLINE</div>
+            <div class="indicator"><span class="dot warn"></span>MYSURU GRID</div>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="hero-eyebrow">▸ EMERGENCY RESPONSE PLATFORM v2.0</div>
+
+        <h1 class="hero-title">
+            <span class="res">Res</span><span class="q">Q</span><span class="flow">Flow</span>
+        </h1>
+
+
+        <div class="divider"></div>
+
+        <div class="cards-label">▸ SELECT YOUR ROLE TO CONTINUE</div>
+
+        <div class="card-grid">
+
+            <!-- DISPATCHER -->
+            <a href="/dispatcher_select" class="role-card card-dispatcher">
+                <div class="bracket-tl"></div>
+                <div class="bracket-br"></div>
+                <div class="card-corner">ROLE-01</div>
+                <div class="card-id">// COMMAND_CENTER</div>
+                <div class="card-icon-bg">🖥️</div>
+                <div class="card-role-title"><span class="card-accent">DISPATCHER</span></div>
+                <p class="card-desc">Command center operations. Receive emergency calls, locate nearest available units, and deploy Medical, Fire, or Police response.</p>
+                <div class="card-specs">
+                    <span class="spec-tag">MAP VIEW</span>
+                    <span class="spec-tag">UNIT ASSIGN</span>
+                    <span class="spec-tag">108/911/100</span>
+                </div>
+                <span class="btn-access">ACCESS PORTAL →</span>
+            </a>
+
+            <!-- DRIVER -->
+            <a href="/login/driver" class="role-card card-driver">
+                <div class="bracket-tl"></div>
+                <div class="bracket-br"></div>
+                <div class="card-corner">ROLE-02</div>
+                <div class="card-id">// FIELD_OPERATOR</div>
+                <div class="card-icon-bg">🚑</div>
+                <div class="card-role-title"><span class="card-accent">DRIVER</span></div>
+                <p class="card-desc">Field operations. Receive mission assignments, navigate using AI-optimized routing with real-time Green Wave traffic control.</p>
+                <div class="card-specs">
+                    <span class="spec-tag">LIVE NAV</span>
+                    <span class="spec-tag">GREEN WAVE</span>
+                    <span class="spec-tag">AI ROUTE</span>
+                </div>
+                <span class="btn-access">START ENGINE →</span>
+            </a>
+
+            <!-- MONITOR -->
+            <a href="/login/monitor" class="role-card card-monitor">
+                <div class="bracket-tl"></div>
+                <div class="bracket-br"></div>
+                <div class="card-corner">ROLE-03</div>
+                <div class="card-id">// STATION_OPS</div>
+                <div class="card-icon-bg">📡</div>
+                <div class="card-role-title"><span class="card-accent">MONITOR</span></div>
+                <p class="card-desc">Station oversight. Track vehicle status, live telemetry, mission progress, and fleet health for your assigned station in real-time.</p>
+                <div class="card-specs">
+                    <span class="spec-tag">LIVE TRACK</span>
+                    <span class="spec-tag">TELEMETRY</span>
+                    <span class="spec-tag">FLEET STATUS</span>
+                </div>
+                <span class="btn-access">CONNECT →</span>
+            </a>
+
+        </div>
+    </div>
+
+    <!-- BOTTOM STRIP -->
+    <div class="bottom-strip">
+        <span>ResQFlow Emergency Management Platform · Mysuru Grid</span>
+        <span id="clock"></span>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent =
+                now.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+    </script>
+</body>
+</html>

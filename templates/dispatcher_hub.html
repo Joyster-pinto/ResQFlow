@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQFlow | Dispatcher Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #060a0f; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0;
+            background-image: linear-gradient(rgba(100,200,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(100,200,255,0.04) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+
+        /* HEADER */
+        header {
+            position: relative; z-index: 100;
+            padding: 16px 30px;
+            background: rgba(6,10,15,0.98);
+            border-bottom: 1px solid rgba(0,212,255,0.15);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .h-logo { font-family: 'Orbitron', monospace; font-size: 1rem; font-weight: 800; color: #00d4ff; letter-spacing: 3px; }
+        .h-user { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: #3a5060; letter-spacing: 1px; }
+        .h-user span { color: #00d4ff; }
+        .logout { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #3a5060; text-decoration: none; padding: 6px 12px; border: 1px solid #1a2030; border-radius: 2px; transition: all 0.2s; }
+        .logout:hover { color: #ff3a3a; border-color: rgba(255,58,58,0.3); }
+
+        /* MAIN */
+        main {
+            position: relative; z-index: 10;
+            flex: 1; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            padding: 40px 30px;
+        }
+
+        .hero-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem; letter-spacing: 5px;
+            color: rgba(0,212,255,0.4); margin-bottom: 14px;
+        }
+        .hero-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 2.2rem; font-weight: 900; color: white;
+            letter-spacing: 2px; margin-bottom: 8px; text-align: center;
+        }
+        .hero-sub {
+            font-size: 1rem; color: #3a5060; letter-spacing: 1px;
+            margin-bottom: 50px; text-align: center;
+        }
+
+        /* SERVICE CARDS */
+        .service-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 380px);
+            gap: 20px;
+        }
+
+        .service-card {
+            position: relative;
+            border-radius: 6px;
+            overflow: hidden;
+            text-decoration: none;
+            display: block;
+            transition: transform 0.3s ease;
+        }
+        .service-card:hover { transform: translateY(-8px); }
+
+        .card-bg {
+            position: absolute; inset: 0;
+            opacity: 0.08;
+            transition: opacity 0.3s;
+        }
+        .service-card:hover .card-bg { opacity: 0.15; }
+
+        .card-border-top {
+            position: absolute; top: 0; left: 0; right: 0; height: 3px;
+        }
+
+        .card-inner {
+            position: relative; z-index: 5;
+            padding: 40px 36px;
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 6px;
+            background: rgba(13,21,32,0.95);
+            backdrop-filter: blur(10px);
+        }
+
+        /* MEDICAL */
+        .medical .card-bg { background: radial-gradient(circle at center, #ff3a3a, transparent 70%); }
+        .medical .card-border-top { background: linear-gradient(90deg, transparent, #ff3a3a, transparent); }
+        .medical:hover .card-inner { border-color: rgba(255,58,58,0.3); box-shadow: 0 20px 60px rgba(255,58,58,0.2); }
+        .medical .service-num { color: rgba(255,58,58,0.3); }
+        .medical .service-name { color: #ff3a3a; }
+        .medical .badge-num { background: rgba(255,58,58,0.15); color: #ff3a3a; border-color: rgba(255,58,58,0.3); }
+        .medical .launch-btn { background: rgba(255,58,58,0.15); border-color: rgba(255,58,58,0.5); color: #ff3a3a; }
+        .medical:hover .launch-btn { background: #ff3a3a; color: white; }
+        .medical .stat-bar-fill { background: #ff3a3a; }
+
+        /* FIRE */
+        .fire .card-bg { background: radial-gradient(circle at center, #ff6b00, transparent 70%); }
+        .fire .card-border-top { background: linear-gradient(90deg, transparent, #ff6b00, transparent); }
+        .fire:hover .card-inner { border-color: rgba(255,107,0,0.3); box-shadow: 0 20px 60px rgba(255,107,0,0.2); }
+        .fire .service-num { color: rgba(255,107,0,0.3); }
+        .fire .service-name { color: #ff6b00; }
+        .fire .badge-num { background: rgba(255,107,0,0.15); color: #ff6b00; border-color: rgba(255,107,0,0.3); }
+        .fire .launch-btn { background: rgba(255,107,0,0.15); border-color: rgba(255,107,0,0.5); color: #ff6b00; }
+        .fire:hover .launch-btn { background: #ff6b00; color: white; }
+        .fire .stat-bar-fill { background: #ff6b00; }
+
+        /* POLICE */
+        .police .card-bg { background: radial-gradient(circle at center, #3a8eff, transparent 70%); }
+        .police .card-border-top { background: linear-gradient(90deg, transparent, #3a8eff, transparent); }
+        .police:hover .card-inner { border-color: rgba(58,142,255,0.3); box-shadow: 0 20px 60px rgba(58,142,255,0.2); }
+        .police .service-num { color: rgba(58,142,255,0.3); }
+        .police .service-name { color: #3a8eff; }
+        .police .badge-num { background: rgba(58,142,255,0.15); color: #3a8eff; border-color: rgba(58,142,255,0.3); }
+        .police .launch-btn { background: rgba(58,142,255,0.15); border-color: rgba(58,142,255,0.5); color: #3a8eff; }
+        .police:hover .launch-btn { background: #3a8eff; color: white; }
+        .police .stat-bar-fill { background: #3a8eff; }
+
+        .service-num {
+            font-family: 'Orbitron', monospace;
+            font-size: 4rem; font-weight: 900;
+            line-height: 1; margin-bottom: 20px;
+            display: block;
+        }
+
+        .service-icon-row {
+            display: flex; align-items: center; gap: 14px;
+            margin-bottom: 16px;
+        }
+        .service-icon { font-size: 2.8rem; filter: drop-shadow(0 0 10px currentColor); }
+        .service-name {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.5rem; font-weight: 700; letter-spacing: 3px;
+        }
+
+        .hotline {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem; color: #3a5060;
+            letter-spacing: 2px; margin-bottom: 20px;
+        }
+
+        .card-desc {
+            font-size: 0.9rem; color: #607080;
+            line-height: 1.6; margin-bottom: 24px;
+            border-left: 2px solid rgba(255,255,255,0.06);
+            padding-left: 14px;
+        }
+
+        /* Mini stats */
+        .mini-stats { display: flex; gap: 8px; margin-bottom: 28px; }
+        .mini-stat { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 3px; padding: 10px 12px; }
+        .mini-stat-val { font-family: 'Orbitron', monospace; font-size: 1.1rem; font-weight: 700; color: white; }
+        .mini-stat-lbl { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; color: #3a5060; margin-top: 3px; letter-spacing: 1px; }
+
+        .stat-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 6px; }
+        .stat-bar-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+
+        .badge-num { border: 1px solid; border-radius: 2px; padding: 3px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; letter-spacing: 1px; display: inline-block; margin-bottom: 16px; }
+
+        .launch-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; padding: 14px;
+            border: 1px solid; border-radius: 3px;
+            font-family: 'Orbitron', monospace; font-size: 0.75rem; font-weight: 700;
+            letter-spacing: 2px;
+            transition: all 0.25s ease;
+        }
+
+        @media (max-width: 1240px) {
+            .service-grid { grid-template-columns: repeat(2, 1fr); max-width: 800px; }
+        }
+        @media (max-width: 800px) {
+            .service-grid { grid-template-columns: 1fr; max-width: 400px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+
+    <header>
+        <div class="h-logo">RESQFLOW</div>
+        <div class="h-user">DISPATCHER: <span>{{ session.dispatcher_user if session else 'ACTIVE' }}</span></div>
+        <a href="/logout" class="logout">LOGOUT</a>
+    </header>
+
+    <main>
+        <div class="hero-label">▸ SELECT EMERGENCY SERVICE TYPE</div>
+        <h1 class="hero-title">DISPATCH COMMAND CENTER</h1>
+        <p class="hero-sub">Choose a service to view station map and deploy units</p>
+
+        <div class="service-grid">
+
+            <!-- MEDICAL -->
+            <a href="/dispatcher/medical" class="service-card medical">
+                <div class="card-bg"></div>
+                <div class="card-border-top"></div>
+                <div class="card-inner">
+                    <span class="service-num">01</span>
+                    <div class="service-icon-row">
+                        <span class="service-icon">🚑</span>
+                        <span class="service-name">MEDICAL</span>
+                    </div>
+                    <div class="badge-num">HOTLINE: 108</div>
+                    <p class="card-desc">Deploy ambulances and medical response teams to trauma, accident, cardiac and all life-threatening emergencies.</p>
+                    <div class="mini-stats">
+                        <div class="mini-stat"><div class="mini-stat-val">12</div><div class="mini-stat-lbl">HOSPITALS</div><div class="stat-bar"><div class="stat-bar-fill" style="width:75%"></div></div></div>
+                        <div class="mini-stat"><div class="mini-stat-val">8</div><div class="mini-stat-lbl">AVAILABLE</div><div class="stat-bar"><div class="stat-bar-fill" style="width:60%"></div></div></div>
+                        <div class="mini-stat"><div class="mini-stat-val">3m</div><div class="mini-stat-lbl">AVG ETA</div><div class="stat-bar"><div class="stat-bar-fill" style="width:90%"></div></div></div>
+                    </div>
+                    <div class="launch-btn">OPEN MEDICAL MAP →</div>
+                </div>
+            </a>
+
+            <!-- FIRE -->
+            <a href="/dispatcher/fire" class="service-card fire">
+                <div class="card-bg"></div>
+                <div class="card-border-top"></div>
+                <div class="card-inner">
+                    <span class="service-num">02</span>
+                    <div class="service-icon-row">
+                        <span class="service-icon">🚒</span>
+                        <span class="service-name">FIRE</span>
+                    </div>
+                    <div class="badge-num">HOTLINE: 101</div>
+                    <p class="card-desc">Deploy fire engines and rescue teams for structure fires, wildfire containment, chemical spills, and rescue operations.</p>
+                    <div class="mini-stats">
+                        <div class="mini-stat"><div class="mini-stat-val">6</div><div class="mini-stat-lbl">STATIONS</div><div class="stat-bar"><div class="stat-bar-fill" style="width:55%"></div></div></div>
+                        <div class="mini-stat"><div class="mini-stat-val">5</div><div class="mini-stat-lbl">AVAILABLE</div><div class="stat-bar"><div class="stat-bar-fill" style="width:80%"></div></div></div>
+                        <div class="mini-stat"><div class="mini-stat-val">5m</div><div class="mini-stat-lbl">AVG ETA</div><div class="stat-bar"><div class="stat-bar-fill" style="width:70%"></div></div></div>
+                    </div>
+                    <div class="launch-btn">OPEN FIRE MAP →</div>
+                </div>
+            </a>
+
+            <!-- POLICE -->
+            <a href="/dispatcher/police" class="service-card police">
+                <div class="card-bg"></div>
+                <div class="card-border-top"></div>
+                <div class="card-inner">
+                    <span class="service-num">03</span>
+                    <div class="service-icon-row">
+                        <span class="service-icon">🚓</span>
+                        <span class="service-name">POLICE</span>
+                    </div>
+                    <div class="badge-num">HOTLINE: 100</div>
+                    <p class="card-desc">Deploy patrol units for crime response, public safety incidents, crowd management, and law enforcement emergencies.</p>
+                    <div class="mini-stats">
+                        <div class="mini-stat"><div class="mini-stat-val">9</div><div class="mini-stat-lbl">STATIONS</div><div class="stat-bar"><div class="stat-bar-fill" style="width:65%"></div></div></div>
+                        <div class="mini-stat"><div class="mini-stat-val">7</div><div class="mini-stat-lbl">AVAILABLE</div><div class="stat-bar"><div class="stat-bar-fill" style="width:85%"></div></div></div>
+                        <div class="mini-stat"><div class="mini-stat-val">4m</div><div class="mini-stat-lbl">AVG ETA</div><div class="stat-bar"><div class="stat-bar-fill" style="width:82%"></div></div></div>
+                    </div>
+                    <div class="launch-btn">OPEN POLICE MAP →</div>
+                </div>
+            </a>
+
+        </div>
+    </main>
+</body>
+</html>

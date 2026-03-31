@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQFlow | Driver Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #100406;
+            --surface: #1a0608;
+            --accent: #ff3a3a;
+            --accent-dim: rgba(255,58,58,0.15);
+            --accent-border: rgba(255,58,58,0.25);
+            --text: #e8c8c8;
+            --muted: #604040;
+            --error: #ff4757;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* LEFT PANEL */
+        .left-panel {
+            flex: 1; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; padding: 60px;
+            position: relative;
+            background: linear-gradient(135deg, #100406 0%, #1a0608 100%);
+            border-right: 1px solid var(--accent-border);
+        }
+
+        .bg-lines {
+            position: absolute; inset: 0; overflow: hidden;
+        }
+        .line {
+            position: absolute; left: 0; width: 100%; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-border), transparent);
+            animation: lineScan 4s linear infinite;
+            opacity: 0;
+        }
+        .line:nth-child(1) { animation-delay: 0s; }
+        .line:nth-child(2) { animation-delay: 1.3s; }
+        .line:nth-child(3) { animation-delay: 2.6s; }
+        @keyframes lineScan {
+            0% { top: -10%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 110%; opacity: 0; }
+        }
+
+        .panel-content { position: relative; z-index: 10; text-align: center; }
+
+        .siren-wrap {
+            position: relative; display: inline-block;
+            margin-bottom: 30px;
+        }
+        .siren-ring {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px; height: 80px; border-radius: 50%;
+            border: 2px solid var(--accent);
+            opacity: 0;
+            animation: sirenPulse 2s ease-out infinite;
+        }
+        .siren-ring:nth-child(2) { animation-delay: 0.5s; }
+        .siren-ring:nth-child(3) { animation-delay: 1s; }
+        @keyframes sirenPulse {
+            0% { width: 80px; height: 80px; opacity: 0.8; }
+            100% { width: 200px; height: 200px; opacity: 0; }
+        }
+        .panel-icon {
+            font-size: 5rem; position: relative; z-index: 1;
+            filter: drop-shadow(0 0 20px rgba(255,58,58,0.6));
+        }
+
+        .panel-title { font-family: 'Orbitron', monospace; font-size: 2rem; font-weight: 900; color: var(--accent); letter-spacing: 4px; margin-bottom: 6px; }
+        .panel-subtitle { font-size: 1rem; color: var(--muted); letter-spacing: 2px; margin-bottom: 40px; }
+
+        .service-badges { display: flex; flex-direction: column; gap: 12px; width: 260px; }
+        .badge {
+            display: flex; align-items: center; gap: 14px;
+            padding: 12px 16px;
+            border: 1px solid var(--accent-border);
+            border-radius: 3px;
+            background: rgba(255,58,58,0.04);
+            font-size: 0.85rem;
+        }
+        .badge-icon { font-size: 1.4rem; }
+        .badge-info { text-align: left; }
+        .badge-name { font-family: 'Orbitron', monospace; font-size: 0.75rem; font-weight: 700; color: white; letter-spacing: 1px; }
+        .badge-sub { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); margin-top: 2px; }
+        .badge-dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; }
+        .d1 .badge-dot { background: #ff3a3a; box-shadow: 0 0 6px #ff3a3a; animation: blink 1.5s infinite; }
+        .d2 .badge-dot { background: #ff6b00; box-shadow: 0 0 6px #ff6b00; animation: blink 1.5s infinite 0.5s; }
+        .d3 .badge-dot { background: #3a8eff; box-shadow: 0 0 6px #3a8eff; animation: blink 1.5s infinite 1s; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+
+        /* RIGHT PANEL */
+        .right-panel {
+            width: 480px; display: flex; flex-direction: column;
+            justify-content: center; padding: 60px 50px;
+            background: var(--surface); position: relative;
+        }
+
+        .form-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; letter-spacing: 4px; color: var(--accent); margin-bottom: 12px; }
+        .form-title { font-family: 'Orbitron', monospace; font-size: 1.6rem; font-weight: 700; color: white; letter-spacing: 1px; margin-bottom: 6px; }
+        .form-desc { font-size: 0.9rem; color: var(--muted); margin-bottom: 0; }
+        .form-header { margin-bottom: 40px; }
+
+        .divider-h { height: 1px; background: linear-gradient(90deg, var(--accent), transparent); margin: 24px 0; }
+
+        .field-group { margin-bottom: 20px; }
+        .field-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 2px; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; }
+        .field-wrap { position: relative; }
+        .field-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 0.9rem; opacity: 0.5; }
+        input {
+            width: 100%; background: rgba(255,58,58,0.04); border: 1px solid var(--muted);
+            border-radius: 3px; padding: 14px 14px 14px 40px; color: white;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; outline: none; transition: all 0.2s;
+        }
+        input:focus { border-color: var(--accent); background: rgba(255,58,58,0.08); box-shadow: 0 0 0 3px rgba(255,58,58,0.1); }
+        input::placeholder { color: var(--muted); }
+
+        .btn-login {
+            width: 100%; padding: 16px; background: var(--accent); color: white;
+            border: none; border-radius: 3px; font-family: 'Orbitron', monospace;
+            font-size: 0.85rem; font-weight: 700; letter-spacing: 3px; cursor: pointer;
+            transition: all 0.25s; margin-top: 10px; position: relative; overflow: hidden;
+        }
+        .btn-login::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); transition: left 0.4s; }
+        .btn-login:hover { background: #e02020; transform: translateY(-1px); box-shadow: 0 8px 25px rgba(255,58,58,0.4); }
+        .btn-login:hover::before { left: 100%; }
+
+        .error-box { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.3); border-radius: 3px; padding: 12px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--error); margin-bottom: 16px; }
+        .back-link { display: block; text-align: center; margin-top: 24px; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted); text-decoration: none; letter-spacing: 1px; transition: color 0.2s; }
+        .back-link:hover { color: var(--accent); }
+        .corner-label { position: absolute; bottom: 20px; right: 20px; font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--muted); letter-spacing: 2px; }
+
+        @media (max-width: 800px) { .left-panel { display: none; } .right-panel { width: 100%; } }
+    </style>
+</head>
+<body>
+
+    <div class="left-panel">
+        <div class="bg-lines">
+            <div class="line"></div><div class="line"></div><div class="line"></div>
+        </div>
+        <div class="panel-content">
+            <div class="siren-wrap">
+                <div class="siren-ring"></div>
+                <div class="siren-ring"></div>
+                <div class="siren-ring"></div>
+                <div class="panel-icon">🚨</div>
+            </div>
+            <div class="panel-title">DRIVER</div>
+            <div class="panel-subtitle">FIELD OPERATIONS ACCESS</div>
+
+            <div class="service-badges">
+                <div class="badge d1">
+                    <span class="badge-icon">🚑</span>
+                    <div class="badge-info">
+                        <div class="badge-name">AMBULANCE</div>
+                        <div class="badge-sub">Medical Emergency · 108</div>
+                    </div>
+                    <div class="badge-dot"></div>
+                </div>
+                <div class="badge d2">
+                    <span class="badge-icon">🚒</span>
+                    <div class="badge-info">
+                        <div class="badge-name">FIRE ENGINE</div>
+                        <div class="badge-sub">Fire Emergency · 101</div>
+                    </div>
+                    <div class="badge-dot"></div>
+                </div>
+                <div class="badge d3">
+                    <span class="badge-icon">🚓</span>
+                    <div class="badge-info">
+                        <div class="badge-name">PATROL CAR</div>
+                        <div class="badge-sub">Police Emergency · 100</div>
+                    </div>
+                    <div class="badge-dot"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="form-header">
+            <div class="form-eyebrow">▸ FIELD OPERATOR ACCESS</div>
+            <h1 class="form-title">Driver<br>Login</h1>
+            <p class="form-desc">Login with your unit credentials. Your dashboard will load based on your assigned station type.</p>
+        </div>
+        <div class="divider-h"></div>
+
+        {% if error %}<div class="error-box">⚠ {{ error }}</div>{% endif %}
+
+        <form method="POST" autocomplete="off">
+            <div class="field-group">
+                <div class="field-label"><span>DRIVER ID</span><span>REQUIRED</span></div>
+                <div class="field-wrap">
+                    <span class="field-icon">👤</span>
+                    <input type="text" name="username" placeholder="e.g. driver_01" required autofocus>
+                </div>
+            </div>
+            <div class="field-group">
+                <div class="field-label"><span>ACCESS CODE</span><span>ENCRYPTED</span></div>
+                <div class="field-wrap">
+                    <span class="field-icon">🔒</span>
+                    <input type="password" name="password" placeholder="••••••••" required>
+                </div>
+            </div>
+            <button type="submit" class="btn-login">🚨 START ENGINE</button>
+        </form>
+
+        <a href="/" class="back-link">← RETURN TO HOME</a>
+        <div class="corner-label">ROLE: DRIVER · RESQFLOW v2.0</div>
+    </div>
+</body>
+</html>
