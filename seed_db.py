@@ -10,14 +10,15 @@ It will:
   3. Add vehicles per station based on realistic capacity
   4. Print a summary when done
 """
-
+import os
 import mysql.connector
 
 DB_CONFIG = {
-    "host":     "localhost",
-    "user":     "root",
-    "password": "106975123",
-    "database": "resqflow"
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "user": os.environ.get("DB_USER", "root"),
+    "password": os.environ.get("DB_PASSWORD", "106975123"),
+    "database": os.environ.get("DB_NAME", "resqflow"),
+    "port": int(os.environ.get("DB_PORT", 3306))
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

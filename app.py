@@ -5,7 +5,13 @@ import urllib.request as urlreq
 app = Flask(__name__)
 app.secret_key = 'resqflow_secret_key_999'
 
-DB_CONFIG   = {"host":"localhost","user":"root","password":"106975123","database":"resqflow"}
+DB_CONFIG = {
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "user": os.environ.get("DB_USER", "root"),
+    "password": os.environ.get("DB_PASSWORD", "106975123"),
+    "database": os.environ.get("DB_NAME", "resqflow"),
+    "port": int(os.environ.get("DB_PORT", 3306))
+}
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 STATUS_FILE = os.path.join(BASE_DIR, "simulation_status.json")
 
