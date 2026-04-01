@@ -1,7 +1,9 @@
 from flask import Flask, render_template, jsonify, request, redirect, session
 import os, json, mysql.connector, math, threading, time
 import urllib.request as urlreq
-
+opener = urlreq.build_opener()
+opener.addheaders = [('User-Agent', 'ResQFlow-Student-Project/1.0')]
+urlreq.install_opener(opener)
 app = Flask(__name__)
 app.secret_key = 'resqflow_secret_key_999'
 
