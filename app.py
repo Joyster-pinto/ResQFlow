@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request, redirect, session
 import os, json, mysql.connector, math, threading, time
+from ai_traffic import AITrafficPredictor
 import urllib.request as urlreq
 opener = urlreq.build_opener()
 opener.addheaders = [('User-Agent', 'ResQFlow-Student-Project/1.0')]
@@ -70,20 +71,27 @@ def get_road_waypoints(start_lat, start_lon, dest_lat, dest_lon):
         url = (
             f"http://router.project-osrm.org/route/v1/driving/"
             f"{start_lon},{start_lat};{dest_lon},{dest_lat}"
-            f"?overview=full&geometries=geojson&steps=false"
+            f"?alternatives=true&overview=full&geometries=geojson&steps=false"
         )
         req = urlreq.Request(url, headers={"User-Agent":"ResQFlow/2.0"})
         with urlreq.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode())
-        coords = data["routes"][0]["geometry"]["coordinates"]
-        return [[c[1], c[0]] for c in coords]
+        
+        # USE AI TRAFFIC PREDICTOR
+        best_route, eta, rationale, coords = AITrafficPredictor.predict_fastest_route(data.get("routes", []))
+        
+        if not coords:
+            raise Exception("No AI coords returned")
+            
+        return coords, eta, rationale, best_route["distance"]
     except Exception as e:
-        print(f"[OSRM] Failed: {e} → straight-line fallback")
-        return [
+        print(f"[OSRM/AI] Failed: {e} → straight-line fallback")
+        coords = [
             [start_lat+(dest_lat-start_lat)*i/19,
              start_lon+(dest_lon-start_lon)*i/19]
             for i in range(20)
         ]
+        return coords, 120, "Fallback straight-line route", 2000
 
 def write_status(data):
     try:
@@ -92,10 +100,9 @@ def write_status(data):
     except:
         pass
 
-def animate_leg(waypoints, steps, speed_kmh, phase, base_data):
+def animate_leg(waypoints, steps, speed_kmh, phase, base_data, eta_seconds, rationale):
     """
     Animate movement along a list of waypoints over `steps` ticks.
-    base_data: dict of fixed fields to include in every status update.
     """
     n = len(waypoints)
     for step in range(steps + 1):
@@ -116,6 +123,8 @@ def animate_leg(waypoints, steps, speed_kmh, phase, base_data):
         else:
             speed = speed_kmh + math.sin(t * math.pi * 3) * 6
 
+        current_eta = int(eta_seconds * (1 - t))
+
         write_status({**base_data,
             "phase":           phase,
             "ambulance_status": phase,
@@ -124,6 +133,9 @@ def animate_leg(waypoints, steps, speed_kmh, phase, base_data):
             "lat": lat, "lon": lon,
             "progress_pct":    round(t * 100, 1),
             "step":            step,
+            "ai_eta_seconds":  current_eta,
+            "ai_rationale":    rationale,
+            "current_waypoints": waypoints
         })
         time.sleep(1)
 
@@ -146,9 +158,10 @@ def simulate_vehicle(start_lat, start_lon, dest_lat, dest_lon,
 
     # ── LEG 1: Station → Incident ────────────────────────────────────────────
     print("[SIM] LEG 1: Fetching outbound route…")
-    outbound = get_road_waypoints(start_lat, start_lon, dest_lat, dest_lon)
+    outbound, out_eta, out_rationale, out_dist = get_road_waypoints(start_lat, start_lon, dest_lat, dest_lon)
+    out_speed = (out_dist / 1000) / (out_eta / 3600) if out_eta > 0 else 60.0
     print(f"[SIM] LEG 1: {len(outbound)} waypoints. Animating outbound…")
-    animate_leg(outbound, STEPS_OUTBOUND, SPEED_KMH, "EN ROUTE TO INCIDENT", base)
+    animate_leg(outbound, STEPS_OUTBOUND, out_speed, "EN ROUTE TO INCIDENT", base, out_eta, out_rationale)
 
     # ── PHASE 2: AT INCIDENT LOCATION — wait for driver to click Leave ────────
     print("[SIM] PHASE 2: Arrived. Waiting for driver to click Leave…")
@@ -165,6 +178,9 @@ def simulate_vehicle(start_lat, start_lon, dest_lat, dest_lon,
             "progress_pct":     0,
             "step":             tick,
             "onscene_label":    onscene["label"],
+            "ai_eta_seconds":   0,
+            "ai_rationale":     "Unit working at scene.",
+            "current_waypoints": outbound,
         })
         tick += 1
         time.sleep(1)
@@ -173,9 +189,10 @@ def simulate_vehicle(start_lat, start_lon, dest_lat, dest_lon,
 
     # ── LEG 3: Incident → Station (return) ───────────────────────────────────
     print("[SIM] LEG 3: Fetching return route…")
-    return_route = get_road_waypoints(dest_lat, dest_lon, start_lat, start_lon)
+    return_route, ret_eta, ret_rationale, ret_dist = get_road_waypoints(dest_lat, dest_lon, start_lat, start_lon)
+    ret_speed = (ret_dist / 1000) / (ret_eta / 3600) if ret_eta > 0 else 60.0
     print(f"[SIM] LEG 3: {len(return_route)} waypoints. Animating return…")
-    animate_leg(return_route, STEPS_RETURN, SPEED_KMH, "RETURNING TO BASE", base)
+    animate_leg(return_route, STEPS_RETURN, ret_speed, "RETURNING TO BASE", base, ret_eta, ret_rationale)
 
     # ── MISSION COMPLETE ─────────────────────────────────────────────────────
     write_status({**base,
@@ -186,6 +203,9 @@ def simulate_vehicle(start_lat, start_lon, dest_lat, dest_lon,
         "lat": start_lat, "lon": start_lon,
         "progress_pct":     100.0,
         "step":             0,
+        "ai_eta_seconds":   0,
+        "ai_rationale":     "Mission Completed.",
+        "current_waypoints": []
     })
     restore_vehicle_to_station(station_id)
     print("[SIM] Mission COMPLETE. Vehicle returned to base.")
@@ -330,17 +350,15 @@ def dispatch_action():
     station = min(stations, key=lambda s: math.sqrt(
         (s['latitude']-lat)**2 + (s['longitude']-lon)**2))
 
-    # FIXED: Changed 'WHERE station_id=%s' to 'WHERE id=%s' 
-    # and changed station['station_id'] to station['id']
-    cur.execute("UPDATE stations SET vehicles_available=vehicles_available-1 WHERE id=%s",
-                (station['id'],))
+    # FIXED: Changed 'id' back to 'station_id' which is the correct schema
+    cur.execute("UPDATE stations SET vehicles_available=vehicles_available-1 WHERE station_id=%s",
+                (station['station_id'],))
     conn.commit()
     conn.close()
 
-    # FIXED: Changed station['station_id'] to station['id'] in the JSON output
     write_status({
         "status":           "PENDING_DRIVER",
-        "station_id":       station['id'],
+        "station_id":       station['station_id'],
         "station_name":     station['name'],
         "station_type":     station['type'],
         "start_lat":        station['latitude'],
@@ -434,22 +452,19 @@ def monitor_dashboard():
         theme=MONITOR_THEMES.get(stype, MONITOR_THEMES['HOSPITAL']))
 
 # ── SHARED API ────────────────────────────────────────────────────────────────
+@app.route('/api/traffic_zone')
+def get_traffic_zone():
+    state = AITrafficPredictor.get_current_traffic_state()
+    return jsonify(state)
+
 @app.route('/get_route')
 def get_route():
     """Returns road waypoints for the CURRENT leg being driven."""
     try:
         with open(STATUS_FILE,'r') as f:
             m = json.load(f)
-        phase = m.get('phase','')
-        if 'RETURN' in phase:
-            # Return leg: incident → station
-            wps = get_road_waypoints(m['dest_lat'], m['dest_lon'],
-                                      m['start_lat'], m['start_lon'])
-        else:
-            # Outbound leg: station → incident
-            wps = get_road_waypoints(m['start_lat'], m['start_lon'],
-                                      m['dest_lat'],  m['dest_lon'])
-        return jsonify({"waypoints": wps, "phase": phase})
+        wps = m.get('current_waypoints', [])
+        return jsonify({"waypoints": wps, "phase": m.get('phase', '')})
     except:
         return jsonify({"waypoints":[], "phase":""})
 

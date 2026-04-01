@@ -219,6 +219,22 @@
             attribution: '© OpenStreetMap © Carto'
         }).addTo(map);
 
+        // TRAFFIC HEATMAP
+        var trafficZoneLayer = L.layerGroup().addTo(map);
+        function fetchTrafficHeatmap() {
+            $.get('/api/traffic_zone', function(data) {
+                trafficZoneLayer.clearLayers();
+                var showTraffic = data.multiplier > 1.2;
+                if(showTraffic && data.zone) {
+                    var bounds = [[data.zone.lat_min, data.zone.lon_min], [data.zone.lat_max, data.zone.lon_max]];
+                    var color = data.multiplier > 2.0 ? '#ff3a3a' : '#ffaa44';
+                    L.rectangle(bounds, {color: color, weight: 1, fillOpacity: 0.15}).addTo(trafficZoneLayer);
+                }
+            });
+        }
+        setInterval(fetchTrafficHeatmap, 5000);
+        fetchTrafficHeatmap();
+
         // STATION MARKERS
         var stations = {{ stations | tojson }};
         stations.forEach(function(s) {

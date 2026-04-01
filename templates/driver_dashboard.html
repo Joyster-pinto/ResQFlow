@@ -223,10 +223,12 @@
     <!-- LIVE BOTTOM PANEL -->
     <div id="live-panel">
         <div class="live-grid">
+            <div class="live-card"><div class="live-val" id="l-eta">—</div><span class="live-unit">MIN:SEC</span><div class="live-lbl">AI SMART ETA</div></div>
             <div class="live-card"><div class="live-val" id="l-speed">0</div><span class="live-unit">KM/H</span><div class="live-lbl">SPEED</div></div>
             <div class="live-card"><div class="live-val" id="l-progress">0%</div><span class="live-unit">LEG PROGRESS</span><div class="live-lbl">PROGRESS</div></div>
             <div class="live-card"><div class="live-val" id="l-phase">—</div><span class="live-unit">CURRENT PHASE</span><div class="live-lbl">STATUS</div></div>
         </div>
+        <div id="ai-rationale" style="text-align:center; margin-top:10px; font-family:'IBM Plex Mono',monospace; font-size:0.75rem; color:var(--accent); letter-spacing:1px; min-height:16px;"></div>
     </div>
 
     <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-bar" style="width:0%"></div></div>
@@ -240,7 +242,26 @@
         var map = L.map('map').setView([12.310, 76.655], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        var ambMarker, routePolyline, destMarker, stationMarker;
+        var ambMarker, destMarker, stationMarker;
+        var routeLayerGroup = L.layerGroup().addTo(map);
+        var trafficZoneLayer = L.layerGroup().addTo(map);
+        var currentTrafficMode = {multiplier: 1.0, zone: null};
+        
+        function fetchTrafficHeatmap() {
+            $.get('/api/traffic_zone', function(data) {
+                currentTrafficMode = data;
+                trafficZoneLayer.clearLayers();
+                var showTraffic = data.multiplier > 1.2;
+                if(showTraffic && data.zone) {
+                    var bounds = [[data.zone.lat_min, data.zone.lon_min], [data.zone.lat_max, data.zone.lon_max]];
+                    var color = data.multiplier > 2.0 ? '#ff3a3a' : '#ffaa44';
+                    L.rectangle(bounds, {color: color, weight: 1, fillOpacity: 0.15}).addTo(trafficZoneLayer);
+                }
+            });
+        }
+        setInterval(fetchTrafficHeatmap, 5000);
+        fetchTrafficHeatmap();
+
         var missionShown   = false;
         var routeLoaded    = false;
         var lastPhase      = '';
@@ -305,12 +326,43 @@
         function loadRoutePolyline(phase) {
             $.get('/get_route', function(data) {
                 if (data.waypoints && data.waypoints.length > 1) {
-                    if (routePolyline) map.removeLayer(routePolyline);
-                    var color = (data.phase && data.phase.includes('RETURN')) ? '#00aaff' : accentColor;
-                    routePolyline = L.polyline(data.waypoints, {
-                        color:color, weight:5, opacity:0.85
-                    }).addTo(map);
-                    if (!ambMarker) map.fitBounds(routePolyline.getBounds(), {padding:[60,60]});
+                    routeLayerGroup.clearLayers();
+                    var baseColor = (data.phase && data.phase.includes('RETURN')) ? '#00aaff' : accentColor;
+                    
+                    var isTrafficHeavy = currentTrafficMode.multiplier > 1.2;
+                    var z = currentTrafficMode.zone;
+                    
+                    if(isTrafficHeavy && z) {
+                        var segments = [];
+                        var currentSegment = [];
+                        var inZone = false;
+                        var trafficColor = currentTrafficMode.multiplier > 2.0 ? '#ff3a3a' : '#ffaa44';
+                        
+                        data.waypoints.forEach((wp) => {
+                            var lat = wp[0], lon = wp[1];
+                            var pointInZone = (lat >= z.lat_min && lat <= z.lat_max && lon >= z.lon_min && lon <= z.lon_max);
+                            
+                            if (pointInZone !== inZone && currentSegment.length > 0) {
+                                currentSegment.push(wp); // connect the gap seamlessly
+                                segments.push({coords: currentSegment, color: inZone ? trafficColor : baseColor});
+                                currentSegment = [wp];
+                                inZone = pointInZone;
+                            } else {
+                                currentSegment.push(wp);
+                            }
+                        });
+                        if (currentSegment.length > 0) {
+                            segments.push({coords: currentSegment, color: inZone ? trafficColor : baseColor});
+                        }
+                        
+                        segments.forEach(seg => {
+                            L.polyline(seg.coords, {color: seg.color, weight:5, opacity:0.85}).addTo(routeLayerGroup);
+                        });
+                        if (!ambMarker) map.fitBounds(L.polyline(data.waypoints).getBounds(), {padding:[60,60]});
+                    } else {
+                        var poly = L.polyline(data.waypoints, {color:baseColor, weight:5, opacity:0.85}).addTo(routeLayerGroup);
+                        if (!ambMarker) map.fitBounds(poly.getBounds(), {padding:[60,60]});
+                    }
                     routeLoaded = true;
                 }
             });
@@ -369,6 +421,10 @@
 
                     var spd  = Math.round(data.ambulance_speed||0);
                     var prog = (data.progress_pct||0).toFixed(1);
+                    var eta_s = data.ai_eta_seconds || 0;
+                    var eta_str = Math.floor(eta_s / 60) + ":" + String(eta_s % 60).padStart(2, '0');
+                    document.getElementById('l-eta').textContent      = eta_s > 0 ? eta_str : '—';
+                    document.getElementById('ai-rationale').textContent = data.ai_rationale || '';
                     document.getElementById('l-speed').textContent    = spd;
                     document.getElementById('l-progress').textContent = prog+'%';
                     document.getElementById('l-phase').textContent    = 'OUTBOUND';
@@ -423,6 +479,10 @@
 
                     var spd  = Math.round(data.ambulance_speed||0);
                     var prog = (data.progress_pct||0).toFixed(1);
+                    var eta_s = data.ai_eta_seconds || 0;
+                    var eta_str = Math.floor(eta_s / 60) + ":" + String(eta_s % 60).padStart(2, '0');
+                    document.getElementById('l-eta').textContent      = eta_s > 0 ? eta_str : '—';
+                    document.getElementById('ai-rationale').textContent = data.ai_rationale || '';
                     document.getElementById('l-speed').textContent    = spd;
                     document.getElementById('l-progress').textContent = prog+'%';
                     document.getElementById('l-phase').textContent    = 'RETURN';
