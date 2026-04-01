@@ -182,8 +182,10 @@
         var lastPhase   = '';
         var logCount    = 0;
 
+        var vehicleEmoji = "{{ theme.vehicle_emoji }}";
+
         var vehicleIcon = L.divIcon({
-            html:'<div style="font-size:28px;filter:drop-shadow(0 0 10px '+accentColor+')">'+stationIcon+'</div>',
+            html:'<div style="font-size:28px;filter:drop-shadow(0 0 10px '+accentColor+')">' + vehicleEmoji + '</div>',
             iconSize:[32,32], className:''
         });
 

@@ -24,9 +24,9 @@ DRIVER_THEMES = {
     "POLICE_STATION":{"accent":"#3a8eff","accent2":"#78b4ff","accent_dim":"rgba(58,142,255,0.12)","accent_border":"rgba(58,142,255,0.3)","vehicle_emoji":"🚓","service_label":"PATROL CAR"},
 }
 MONITOR_THEMES = {
-    "HOSPITAL":      {"accent":"#00e5b0","accent2":"#00ff88","accent_dim":"rgba(0,229,176,0.1)","accent_border":"rgba(0,229,176,0.25)","bg":"#050f0c","surface":"#081812","station_label":"HOSPITAL MONITOR","station_icon":"🏥"},
-    "FIRE_STATION":  {"accent":"#ff6b00","accent2":"#ffaa44","accent_dim":"rgba(255,107,0,0.1)","accent_border":"rgba(255,107,0,0.25)","bg":"#100800","surface":"#180c00","station_label":"FIRE STATION MONITOR","station_icon":"🔥"},
-    "POLICE_STATION":{"accent":"#6699ff","accent2":"#99bbff","accent_dim":"rgba(102,153,255,0.1)","accent_border":"rgba(102,153,255,0.25)","bg":"#040814","surface":"#080c1a","station_label":"POLICE STATION MONITOR","station_icon":"🚔"},
+    "HOSPITAL":      {"accent":"#00e5b0","accent2":"#00ff88","accent_dim":"rgba(0,229,176,0.1)","accent_border":"rgba(0,229,176,0.25)","bg":"#050f0c","surface":"#081812","station_label":"HOSPITAL MONITOR","station_icon":"🏥", "vehicle_emoji":"🚑"},
+    "FIRE_STATION":  {"accent":"#ff6b00","accent2":"#ffaa44","accent_dim":"rgba(255,107,0,0.1)","accent_border":"rgba(255,107,0,0.25)","bg":"#100800","surface":"#180c00","station_label":"FIRE STATION MONITOR","station_icon":"🔥", "vehicle_emoji":"🚒"},
+    "POLICE_STATION":{"accent":"#6699ff","accent2":"#99bbff","accent_dim":"rgba(102,153,255,0.1)","accent_border":"rgba(102,153,255,0.25)","bg":"#040814","surface":"#080c1a","station_label":"POLICE STATION MONITOR","station_icon":"🚔", "vehicle_emoji":"🚓"},
 }
 
 # On-scene work duration and status messages per service type

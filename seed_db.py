@@ -20,7 +20,6 @@ DB_CONFIG = {
     "database": os.environ.get("DB_NAME", "resqflow"),
     "port": int(os.environ.get("DB_PORT", 3306))
 }
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  REAL MYSURU STATIONS  (name, type, lat, lon, vehicle_count)
 #  Types: HOSPITAL | FIRE_STATION | POLICE_STATION
