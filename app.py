@@ -310,40 +310,48 @@ def dispatcher_view(service_type):
 def dispatch_action():
     if 'dispatcher_user' not in session:
         return jsonify({"status":"error","message":"Unauthorized"})
+    
     data = request.json
     lat, lon = data['lat'], data['lon']
     service_type = data.get('type','medical')
     type_map = {'medical':'HOSPITAL','fire':'FIRE_STATION','police':'POLICE_STATION'}
 
-    conn = get_db(); cur = conn.cursor(dictionary=True)
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
     cur.execute("SELECT * FROM stations WHERE type=%s AND vehicles_available>0",
                 (type_map.get(service_type),))
     stations = cur.fetchall()
+    
     if not stations:
         conn.close()
         return jsonify({"status":"error","message":"No vehicles available at any station!"})
 
+    # Find the nearest station
     station = min(stations, key=lambda s: math.sqrt(
         (s['latitude']-lat)**2 + (s['longitude']-lon)**2))
 
-    cur.execute("UPDATE stations SET vehicles_available=vehicles_available-1 WHERE station_id=%s",
-                (station['station_id'],))
-    conn.commit(); conn.close()
+    # FIXED: Changed 'WHERE station_id=%s' to 'WHERE id=%s' 
+    # and changed station['station_id'] to station['id']
+    cur.execute("UPDATE stations SET vehicles_available=vehicles_available-1 WHERE id=%s",
+                (station['id'],))
+    conn.commit()
+    conn.close()
 
+    # FIXED: Changed station['station_id'] to station['id'] in the JSON output
     write_status({
-        "status":         "PENDING_DRIVER",
-        "station_id":     station['station_id'],
-        "station_name":   station['name'],
-        "station_type":   station['type'],
-        "start_lat":      station['latitude'],
-        "start_lon":      station['longitude'],
-        "dest_lat":       lat,
-        "dest_lon":       lon,
+        "status":           "PENDING_DRIVER",
+        "station_id":       station['id'],
+        "station_name":     station['name'],
+        "station_type":     station['type'],
+        "start_lat":        station['latitude'],
+        "start_lon":        station['longitude'],
+        "dest_lat":         lat,
+        "dest_lon":         lon,
         "ambulance_active": False,
-        "phase":          "PENDING_DRIVER",
+        "phase":            "PENDING_DRIVER",
     })
+    
     return jsonify({"status":"success","message":f"Mission dispatched to {station['name']}!"})
-
 # ── DRIVER ────────────────────────────────────────────────────────────────────
 @app.route('/login/driver', methods=['GET','POST'])
 def login_driver():
