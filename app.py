@@ -457,6 +457,11 @@ def get_traffic_zone():
     state = AITrafficPredictor.get_current_traffic_state()
     return jsonify(state)
 
+@app.route('/api/traffic_heatmap')
+def get_traffic_heatmap():
+    data = AITrafficPredictor.get_heatmap_zones()
+    return jsonify(data)
+
 @app.route('/get_route')
 def get_route():
     """Returns road waypoints for the CURRENT leg being driven."""

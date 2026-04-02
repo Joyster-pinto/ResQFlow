@@ -131,6 +131,43 @@
         }
         .leaflet-popup-tip { background: #0d1520; }
 
+        /* HEATMAP LEGEND */
+        #heatmap-legend {
+            position: absolute; bottom: 28px; right: 16px; z-index: 800;
+            background: rgba(6,10,15,0.88); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px; padding: 12px 16px; backdrop-filter: blur(8px);
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem;
+            min-width: 190px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+            transition: opacity 0.4s;
+        }
+        #heatmap-legend .legend-title {
+            color: #c8d8e8; letter-spacing: 2px; font-size: 0.58rem;
+            margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+        }
+        .legend-grad {
+            height: 10px; border-radius: 4px;
+            background: linear-gradient(to right, #00ff88, #ffdd00, #ff6b00, #ff3a3a);
+            margin-bottom: 6px;
+        }
+        .legend-labels { display: flex; justify-content: space-between; color: #3a5060; font-size: 0.55rem; }
+        .legend-zone-row { display: flex; align-items: center; gap: 7px; margin-top: 5px; padding: 3px 0; border-top: 1px solid rgba(255,255,255,0.04); }
+        .legend-zone-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .legend-zone-name { color: #607080; font-size: 0.57rem; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .legend-zone-pct  { color: #c8d8e8; font-size: 0.6rem; flex-shrink: 0; }
+        #traffic-status-bar {
+            display: flex; align-items: center; gap: 10px;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.63rem;
+        }
+        .traffic-pill {
+            padding: 4px 10px; border-radius: 20px; font-size: 0.58rem; font-weight: 700;
+            letter-spacing: 1px; border: 1px solid;
+        }
+        .traffic-pill.low    { background: rgba(0,255,136,0.12); color: #00ff88; border-color: rgba(0,255,136,0.3); }
+        .traffic-pill.medium { background: rgba(255,221,0,0.12);  color: #ffdd00; border-color: rgba(255,221,0,0.3); }
+        .traffic-pill.high   { background: rgba(255,107,0,0.12);  color: #ff6b00; border-color: rgba(255,107,0,0.3); }
+        .traffic-pill.severe { background: rgba(255,58,58,0.14);  color: #ff3a3a; border-color: rgba(255,58,58,0.35);
+                               animation: blink 0.9s infinite; }
+
         /* TOAST */
         #toast {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
@@ -154,6 +191,11 @@
             <div class="h-title">DISPATCH CONSOLE</div>
         </div>
         <div class="h-right">
+            <div id="traffic-status-bar">
+                <span style="color:#3a5060">TRAFFIC</span>
+                <span class="traffic-pill low" id="traffic-pill">LOADING…</span>
+                <span style="color:#3a5060" id="traffic-label">—</span>
+            </div>
             <div class="h-status"><span class="status-dot"></span>SYSTEM ONLINE</div>
             <a href="/dispatcher_hub" class="back-btn">← HUB</a>
             <a href="/logout" class="back-btn">LOGOUT</a>
@@ -204,7 +246,14 @@
             </div>
         </div>
 
-        <div id="map"></div>
+        <div id="map" style="position:relative;">
+            <div id="heatmap-legend">
+                <div class="legend-title">🌡 TRAFFIC HEATMAP</div>
+                <div class="legend-grad"></div>
+                <div class="legend-labels"><span>FREE</span><span>MODERATE</span><span>HEAVY</span><span>SEVERE</span></div>
+                <div id="legend-zones" style="margin-top:8px;"></div>
+            </div>
+        </div>
     </div>
 
     <div id="toast"></div>
@@ -219,21 +268,188 @@
             attribution: '© OpenStreetMap © Carto'
         }).addTo(map);
 
-        // TRAFFIC HEATMAP
-        var trafficZoneLayer = L.layerGroup().addTo(map);
-        function fetchTrafficHeatmap() {
-            $.get('/api/traffic_zone', function(data) {
-                trafficZoneLayer.clearLayers();
-                var showTraffic = data.multiplier > 1.2;
-                if(showTraffic && data.zone) {
-                    var bounds = [[data.zone.lat_min, data.zone.lon_min], [data.zone.lat_max, data.zone.lon_max]];
-                    var color = data.multiplier > 2.0 ? '#ff3a3a' : '#ffaa44';
-                    L.rectangle(bounds, {color: color, weight: 1, fillOpacity: 0.15}).addTo(trafficZoneLayer);
-                }
+        // ── HEATMAP ENGINE ──────────────────────────────────────────────────────
+        var heatmapLayer = L.layerGroup().addTo(map);
+        var ghostLayer   = L.layerGroup().addTo(map);
+        var pulseMarkers = [];
+        var heatCircles  = [];
+
+        /* Map intensity [0,1] → RGBA color (green→yellow→orange→red) */
+        function intensityToColor(t, alpha) {
+            var r, g, b;
+            if (t < 0.5) {
+                r = Math.round(t * 2 * 255);
+                g = 220;
+                b = 60;
+            } else {
+                r = 255;
+                g = Math.round((1 - (t - 0.5) * 2) * 180);
+                b = 30;
+            }
+            return alpha !== undefined
+                ? `rgba(${r},${g},${b},${alpha})`
+                : `rgb(${r},${g},${b})`;
+        }
+
+        /* Draw a radial-gradient heatmap blob using a canvas-driven circle */
+        function makeHeatBlob(lat, lon, radiusM, intensity) {
+            var layers = [
+                { factor: 1.00, alpha: 0.04 + intensity * 0.10 },
+                { factor: 0.65, alpha: 0.06 + intensity * 0.15 },
+                { factor: 0.35, alpha: 0.10 + intensity * 0.22 },
+                { factor: 0.15, alpha: 0.18 + intensity * 0.30 },
+            ];
+            var group = [];
+            layers.forEach(function(l) {
+                var c = L.circle([lat, lon], {
+                    radius:      radiusM * l.factor,
+                    color:       'transparent',
+                    fillColor:   intensityToColor(intensity),
+                    fillOpacity: l.alpha,
+                    interactive: false,
+                    pane:        'overlayPane'
+                }).addTo(heatmapLayer);
+                group.push({circle: c, baseAlpha: l.alpha});
+            });
+            heatCircles.push({group: group, intensity: intensity});
+        }
+
+        /* Breathing animation — 20fps sine-wave opacity oscillation */
+        var breathPhase = 0;
+        setInterval(function() {
+            breathPhase += 0.07;
+            var mult = 1 + Math.sin(breathPhase) * 0.15;
+            heatCircles.forEach(function(entry) {
+                entry.group.forEach(function(item) {
+                    item.circle.setStyle({fillOpacity: item.baseAlpha * mult});
+                });
+            });
+        }, 50);
+
+        /* Ghost vehicles moving on Mysuru road segments */
+        var GHOST_ROUTES = [
+            [[12.3052,76.6552],[12.3065,76.6590],[12.3080,76.6630]],
+            [[12.3010,76.6420],[12.3020,76.6460],[12.3035,76.6500]],
+            [[12.3120,76.6490],[12.3100,76.6460],[12.3080,76.6430]],
+            [[12.2990,76.5900],[12.3020,76.5950],[12.3050,76.6000]],
+            [[12.3540,76.6160],[12.3510,76.6120],[12.3480,76.6080]],
+            [[12.3320,76.5900],[12.3300,76.5950],[12.3280,76.6000]],
+            [[12.3650,76.6050],[12.3620,76.6080],[12.3590,76.6110]],
+            [[12.2850,76.6220],[12.2880,76.6270],[12.2910,76.6320]],
+            [[12.3055,76.6520],[12.3040,76.6480],[12.3025,76.6440]],
+            [[12.2750,76.6600],[12.2780,76.6560],[12.2810,76.6520]],
+            [[12.3200,76.6350],[12.3220,76.6400],[12.3240,76.6450]],
+            [[12.3400,76.6200],[12.3380,76.6250],[12.3360,76.6300]],
+        ];
+        var GHOST_EMOJIS = ['🚗','🚕','🚙','🛻','🚌','🚐'];
+        var ghostStates = [];
+
+        (function initGhosts() {
+            GHOST_ROUTES.forEach(function(route, i) {
+                var emoji = GHOST_EMOJIS[i % GHOST_EMOJIS.length];
+                var icon = L.divIcon({
+                    className: '',
+                    html: '<div style="font-size:13px;opacity:0.5;filter:drop-shadow(0 0 3px rgba(255,200,50,0.6))">'+emoji+'</div>',
+                    iconSize:[16,16], iconAnchor:[8,8]
+                });
+                var marker = L.marker(route[0], {icon:icon, interactive:false, zIndexOffset:-100}).addTo(ghostLayer);
+                ghostStates.push({route:route, t:Math.random(), speed:0.004+Math.random()*0.006, fwd:Math.random()>0.5, marker:marker});
+            });
+        })();
+
+        setInterval(function() {
+            ghostStates.forEach(function(g) {
+                g.t += g.fwd ? g.speed : -g.speed;
+                if (g.t >= 1) { g.t = 1; g.fwd = false; }
+                if (g.t <= 0) { g.t = 0; g.fwd = true; }
+                var segs = g.route.length - 1;
+                var segT = g.t * segs;
+                var segI = Math.min(Math.floor(segT), segs-1);
+                var f = segT - segI;
+                var a = g.route[segI], b = g.route[segI+1];
+                g.marker.setLatLng([a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f]);
+            });
+        }, 200);
+
+        /* Animated pulse ring for high-intensity (>0.65) zones */
+        function addPulseMarker(lat, lon, intensity) {
+            var color = intensityToColor(intensity);
+            var icon = L.divIcon({
+                className: '',
+                html: `<div class="heat-pulse" style="--pc:${color}"></div>`,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            });
+            return L.marker([lat, lon], { icon: icon, interactive: false }).addTo(map);
+        }
+
+        /* Traffic pill + label */
+        function updateTrafficPill(multiplier, isRush, isNight) {
+            var pill = document.getElementById('traffic-pill');
+            var lbl  = document.getElementById('traffic-label');
+            pill.className = 'traffic-pill';
+            if (isNight)           { pill.classList.add('low');    pill.textContent = 'LIGHT';    lbl.textContent = 'Night — roads clear'; }
+            else if (multiplier > 2.0) { pill.classList.add('severe'); pill.textContent = 'SEVERE';   lbl.textContent = 'Rush hour gridlock'; }
+            else if (multiplier > 1.6) { pill.classList.add('high');   pill.textContent = 'HEAVY';    lbl.textContent = 'Heavy congestion'; }
+            else if (multiplier > 1.2) { pill.classList.add('medium'); pill.textContent = 'MODERATE'; lbl.textContent = 'Moderate flow'; }
+            else                   { pill.classList.add('low');    pill.textContent = 'LIGHT';    lbl.textContent = 'Traffic flowing freely'; }
+        }
+
+        /* Update legend zone list */
+        function updateLegendZones(zones) {
+            var el = document.getElementById('legend-zones');
+            el.innerHTML = '';
+            zones.slice(0, 7).forEach(function(z) {
+                var pct = Math.round(z.intensity * 100);
+                var color = intensityToColor(z.intensity);
+                el.innerHTML += `
+                    <div class="legend-zone-row">
+                        <div class="legend-zone-dot" style="background:${color};box-shadow:0 0 4px ${color}"></div>
+                        <span class="legend-zone-name">${z.name}</span>
+                        <span class="legend-zone-pct">${pct}%</span>
+                    </div>`;
             });
         }
-        setInterval(fetchTrafficHeatmap, 5000);
+
+        /* Main fetch & render */
+        function fetchTrafficHeatmap() {
+            $.get('/api/traffic_heatmap', function(data) {
+                // Clear previous layers
+                heatmapLayer.clearLayers();
+                pulseMarkers.forEach(function(m) { map.removeLayer(m); });
+                pulseMarkers = [];
+                heatCircles  = [];
+
+                data.zones.forEach(function(z) {
+                    if (z.intensity < 0.08) return; // skip negligible
+                    makeHeatBlob(z.lat, z.lon, z.radius, z.intensity);
+                    if (z.intensity > 0.65) {
+                        pulseMarkers.push(addPulseMarker(z.lat, z.lon, z.intensity));
+                    }
+                });
+
+                updateTrafficPill(data.multiplier, data.is_rush, data.is_night);
+                updateLegendZones(data.zones);
+
+                // Rescale ghost speed
+                var mult = data.multiplier || 1.0;
+                ghostStates.forEach(function(g) {
+                    var base = 0.004 + Math.random() * 0.004;
+                    g.speed = mult > 1.8 ? base * 0.5 : (mult < 0.9 ? base * 2.0 : base);
+                });
+            });
+        }
+
+        // Also keep the old single-zone compatibility for route coloring
+        var currentTrafficMode = { multiplier: 1.0, zone: null };
+        function fetchTrafficZone() {
+            $.get('/api/traffic_zone', function(data) { currentTrafficMode = data; });
+        }
+
+        setInterval(fetchTrafficHeatmap, 8000);
+        setInterval(fetchTrafficZone, 8000);
         fetchTrafficHeatmap();
+        fetchTrafficZone();
 
         // STATION MARKERS
         var stations = {{ stations | tojson }};
@@ -306,5 +522,20 @@
             });
         }
     </script>
+
+    <style>
+        /* Pulse ring animation for severe hotspots */
+        .heat-pulse {
+            width: 40px; height: 40px; border-radius: 50%;
+            border: 2px solid var(--pc, #ff3a3a);
+            animation: heatRing 2s ease-out infinite;
+            opacity: 0;
+        }
+        @keyframes heatRing {
+            0%   { transform: scale(0.3); opacity: 0.9; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+        @keyframes pulse { 50% { transform: scale(1.2); } }
+    </style>
 </body>
 </html>

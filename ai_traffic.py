@@ -1,5 +1,6 @@
 import datetime
 import math
+import random
 
 class AITrafficPredictor:
     """
@@ -15,6 +16,20 @@ class AITrafficPredictor:
     CITY_CENTER_LON_MIN = 76.6450
     CITY_CENTER_LON_MAX = 76.6650
 
+    # All major traffic hotspot zones in Mysuru
+    TRAFFIC_ZONES = [
+        {"name": "Palace Rd / City Centre",  "lat": 12.3052, "lon": 76.6552, "base_radius": 650,  "base_intensity": 1.0},
+        {"name": "Bannimantap Junction",       "lat": 12.2990, "lon": 76.5900, "base_radius": 420,  "base_intensity": 0.75},
+        {"name": "Sayyaji Rao Rd",            "lat": 12.3120, "lon": 76.6490, "base_radius": 350,  "base_intensity": 0.82},
+        {"name": "Vijayanagar 4th Stage",     "lat": 12.3320, "lon": 76.5900, "base_radius": 380,  "base_intensity": 0.60},
+        {"name": "Nazarbad Junction",         "lat": 12.3010, "lon": 76.6420, "base_radius": 280,  "base_intensity": 0.55},
+        {"name": "Hebbal Ring Road",          "lat": 12.3540, "lon": 76.6160, "base_radius": 310,  "base_intensity": 0.50},
+        {"name": "Bogadi Rd Junction",        "lat": 12.2850, "lon": 76.6220, "base_radius": 260,  "base_intensity": 0.45},
+        {"name": "KR Hospital Area",          "lat": 12.3055, "lon": 76.6520, "base_radius": 300,  "base_intensity": 0.70},
+        {"name": "Mysuru-Bengaluru NH",       "lat": 12.3650, "lon": 76.6050, "base_radius": 500,  "base_intensity": 0.65},
+        {"name": "Ooty Rd Junction",          "lat": 12.2750, "lon": 76.6600, "base_radius": 340,  "base_intensity": 0.58},
+    ]
+
     @classmethod
     def get_current_traffic_state(cls):
         """Returns the active congestion zone coordinates and current live traffic multiplier."""
@@ -26,6 +41,50 @@ class AITrafficPredictor:
                 "lon_max": cls.CITY_CENTER_LON_MAX
             },
             "multiplier": cls.get_time_multiplier()
+        }
+
+    @classmethod
+    def get_heatmap_zones(cls):
+        """
+        Returns a list of traffic hotspot zones for heatmap rendering.
+        Each zone has a position, radius (metres), intensity (0-1), and a
+        small time-jitter so the map feels alive between refreshes.
+        """
+        mult = cls.get_time_multiplier()
+        hour = datetime.datetime.now().hour
+        is_rush = (8 <= hour <= 10) or (17 <= hour <= 20)
+        is_night = hour >= 23 or hour <= 6
+
+        zones = []
+        for z in cls.TRAFFIC_ZONES:
+            # Scale intensity by time-of-day multiplier
+            intensity = z["base_intensity"] * min(mult, 2.5) / 2.5
+            if is_night:
+                intensity *= 0.35          # very low at night
+            elif is_rush and z["base_intensity"] >= 0.7:
+                intensity = min(intensity * 1.4, 1.0)  # boost hotspots at rush hour
+
+            # Small random jitter so the map feels live on each poll
+            jitter = (random.random() - 0.5) * 0.06
+            intensity = max(0.0, min(1.0, intensity + jitter))
+
+            # Radius expands slightly at rush hour
+            radius = z["base_radius"] * (1.0 + (0.3 if is_rush else 0.0))
+
+            zones.append({
+                "name":      z["name"],
+                "lat":       z["lat"],
+                "lon":       z["lon"],
+                "radius":    int(radius),
+                "intensity": round(intensity, 3),
+            })
+
+        return {
+            "zones":      zones,
+            "multiplier": mult,
+            "hour":       hour,
+            "is_rush":    is_rush,
+            "is_night":   is_night,
         }
 
     @classmethod
