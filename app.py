@@ -364,14 +364,14 @@ def dispatch_action():
         (float(s['latitude'])-float(lat))**2 + (float(s['longitude'])-float(lon))**2))
 
     # FIXED: Changed 'id' back to 'station_id' which is the correct schema
-    cur.execute("UPDATE stations SET vehicles_available=vehicles_available-1 WHERE station_id=%s",
-                (station['station_id'],))
+    cur.execute("UPDATE stations SET vehicles_available=vehicles_available-1 WHERE id=%s",
+                (station['id'],))
     conn.commit()
     conn.close()
 
     write_status({
         "status":           "PENDING_DRIVER",
-        "station_id":       station['station_id'],
+        "station_id":       station['id'],
         "station_name":     station['name'],
         "station_type":     station['type'],
         "start_lat":        float(station['latitude']),
