@@ -354,9 +354,14 @@ def dispatch_action():
         conn.close()
         return jsonify({"status":"error","message":"No vehicles available at any station!"})
 
+    valid_stations = [s for s in stations if s.get('latitude') is not None and s.get('longitude') is not None]
+    if not valid_stations:
+        conn.close()
+        return jsonify({"status":"error","message":"No valid stations with GPS data available!"})
+
     # Find the nearest station
-    station = min(stations, key=lambda s: math.sqrt(
-        (s['latitude']-lat)**2 + (s['longitude']-lon)**2))
+    station = min(valid_stations, key=lambda s: math.sqrt(
+        (float(s['latitude'])-float(lat))**2 + (float(s['longitude'])-float(lon))**2))
 
     # FIXED: Changed 'id' back to 'station_id' which is the correct schema
     cur.execute("UPDATE stations SET vehicles_available=vehicles_available-1 WHERE station_id=%s",
@@ -369,10 +374,10 @@ def dispatch_action():
         "station_id":       station['station_id'],
         "station_name":     station['name'],
         "station_type":     station['type'],
-        "start_lat":        station['latitude'],
-        "start_lon":        station['longitude'],
-        "dest_lat":         lat,
-        "dest_lon":         lon,
+        "start_lat":        float(station['latitude']),
+        "start_lon":        float(station['longitude']),
+        "dest_lat":         float(lat),
+        "dest_lon":         float(lon),
         "ambulance_active": False,
         "phase":            "PENDING_DRIVER",
     })
