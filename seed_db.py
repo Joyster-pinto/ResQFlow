@@ -14,12 +14,12 @@ import os
 import mysql.connector
 
 DB_CONFIG = {
-    "host":         os.environ.get("DB_HOST",     "localhost"),
-    "user":         os.environ.get("DB_USER",     "root"),
-    "password":     os.environ.get("DB_PASSWORD", ""),
-    "database":     os.environ.get("DB_NAME",     "resqflow"),
-    "port":         int(os.environ.get("DB_PORT", 3306)),
-    "ssl_disabled": not bool(os.environ.get("DB_HOST")),  # SSL on when remote (Aiven)
+    "host":         "mysql-6d28c4a-joysterpinto2006-e0e1.e.aivencloud.com",
+    "user":         "avnadmin",
+    "password":     "AVNS_7fy1STtHEisONfFxDs_",
+    "database":     "defaultdb",
+    "port":         16149,
+    "ssl_disabled": False,
 }
 # ─────────────────────────────────────────────────────────────────────────────
 #  REAL MYSURU STATIONS  (name, type, lat, lon, vehicle_count)

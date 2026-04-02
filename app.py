@@ -8,23 +8,14 @@ urlreq.install_opener(opener)
 app = Flask(__name__)
 app.secret_key = 'resqflow_secret_key_999'
 
-# ── DB CONFIG ─────────────────────────────────────────────────────────────────
-# Credentials are read ONLY from environment variables — never hardcoded.
-# Set these in Render dashboard > Environment > Add Environment Variable:
-#   DB_HOST     = mysql-6d28c4a-joysterpinto2006-e0e1.e.aivencloud.com
-#   DB_USER     = avnadmin
-#   DB_PASSWORD = (your Aiven password)
-#   DB_NAME     = defaultdb
-#   DB_PORT     = 16149
-
 DB_CONFIG = {
-    "host":               os.environ.get("DB_HOST",     "localhost"),
-    "user":               os.environ.get("DB_USER",     "root"),
-    "password":           os.environ.get("DB_PASSWORD", ""),
-    "database":           os.environ.get("DB_NAME",     "resqflow"),
-    "port":               int(os.environ.get("DB_PORT", 3306)),
+    "host":               "mysql-6d28c4a-joysterpinto2006-e0e1.e.aivencloud.com",
+    "user":               "avnadmin",
+    "password":           "AVNS_7fy1STtHEisONfFxDs_",
+    "database":           "defaultdb",
+    "port":               16149,
+    "ssl_disabled":       False,
     "connection_timeout": 10,
-    "ssl_disabled":       not bool(os.environ.get("DB_HOST")),  # SSL on when remote
 }
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 STATUS_FILE = os.path.join(BASE_DIR, "simulation_status.json")
