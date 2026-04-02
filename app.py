@@ -8,12 +8,26 @@ urlreq.install_opener(opener)
 app = Flask(__name__)
 app.secret_key = 'resqflow_secret_key_999'
 
+# ── DB CONFIG ─────────────────────────────────────────────────────────────────
+# Reads from environment variables so the same code works both locally
+# (falls back to localhost/root) and on Render.com with Aiven MySQL.
+#
+# Aiven requires SSL. When DB_HOST env var is set (i.e. we are on Render),
+# ssl_disabled is automatically set to False.  Set DB_SSL_CA to the path of
+# the Aiven CA certificate if you download it; otherwise ssl_verify_cert is
+# left False so the connection still works without the cert file.
+
+_is_remote = bool(os.environ.get("DB_HOST"))   # True when running on Render
+
 DB_CONFIG = {
-    "host": os.environ.get("DB_HOST", "localhost"),
-    "user": os.environ.get("DB_USER", "root"),
-    "password": os.environ.get("DB_PASSWORD", "106975123"),
-    "database": os.environ.get("DB_NAME", "resqflow"),
-    "port": int(os.environ.get("DB_PORT", 3306))
+    "host":               os.environ.get("DB_HOST", "localhost"),
+    "user":               os.environ.get("DB_USER", "root"),
+    "password":           os.environ.get("DB_PASSWORD", "106975123"),
+    "database":           os.environ.get("DB_NAME", "resqflow"),
+    "port":               int(os.environ.get("DB_PORT", 3306)),
+    "connection_timeout": 10,
+    # SSL — required by Aiven, harmless to include locally (just disabled)
+    "ssl_disabled":       not _is_remote,
 }
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 STATUS_FILE = os.path.join(BASE_DIR, "simulation_status.json")
@@ -41,7 +55,13 @@ ONSCENE = {
 leave_scene_event = threading.Event()
 
 def get_db():
-    return mysql.connector.connect(**DB_CONFIG)
+    try:
+        return mysql.connector.connect(**DB_CONFIG)
+    except mysql.connector.Error as e:
+        print(f"[DB] Connection FAILED — host={DB_CONFIG['host']} port={DB_CONFIG['port']} "
+              f"user={DB_CONFIG['user']} db={DB_CONFIG['database']} ssl_disabled={DB_CONFIG['ssl_disabled']}")
+        print(f"[DB] Error: {e}")
+        raise
 
 def get_station_type(station_id):
     try:
