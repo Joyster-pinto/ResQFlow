@@ -1,6 +1,8 @@
 # 🚨 ResQFlow — AI-Powered Emergency Response System
 
-ResQFlow is a full-stack web application that simulates an intelligent emergency dispatch system for Mysuru City. It coordinates Medical, Fire, and Police emergency services in real-time using road-following vehicle simulation powered by the OSRM routing engine.
+ResQFlow is a full-stack web application that simulates an intelligent emergency dispatch system for Mysuru City. It coordinates Medical, Fire, and Police emergency services in real-time using road-following vehicle simulation powered by the OSRM routing engine and a live AI traffic heatmap.
+
+🌐 **Live Demo:** [https://resqflow.onrender.com](https://resqflow.onrender.com)
 
 ---
 
@@ -26,7 +28,53 @@ ResQFlow is a full-stack web application that simulates an intelligent emergency
 | Frontend | HTML5 · CSS3 · JavaScript |
 | Maps | Leaflet.js 1.7.1 |
 | Road Routing | OSRM Public API (free, no API key needed) |
+| Traffic Engine | Custom AI heuristic (time-of-day + zone density) |
 | UI Libraries | jQuery 3.6 · Google Fonts (Orbitron, Rajdhani, IBM Plex Mono) |
+
+---
+
+## 🌡️ Live Traffic Heatmap
+
+ResQFlow features a fully animated, multi-zone traffic heatmap across Mysuru city — visible on all three dashboard views (Dispatcher, Driver, Monitor).
+
+### How it works
+
+- **10 named traffic hotspots** are modelled across Mysuru based on real congestion patterns:
+  - Palace Rd / City Centre, Sayyaji Rao Rd, KR Hospital Area
+  - Bannimantap Junction, Nazarbad Junction, Vijayanagar 4th Stage
+  - Hebbal Ring Road, Bogadi Rd Junction, Mysuru–Bengaluru NH, Ooty Rd Junction
+
+- Each zone is rendered as **4 concentric gradient circles** fading from a solid core outward, colour-coded by congestion intensity:
+
+  | Colour | Intensity | Meaning |
+  |---|---|---|
+  | 🟢 Green | 0–30% | Free-flowing traffic |
+  | 🟡 Yellow | 30–60% | Moderate congestion |
+  | 🟠 Orange | 60–80% | Heavy traffic |
+  | 🔴 Red | 80–100% | Severe / gridlock |
+
+- **Rush hours** (08:00–10:00 and 17:00–20:00) automatically boost hotspot intensity and expand zone radii
+- **Night hours** (23:00–06:00) greatly reduce all intensities
+- A ±6% random jitter is applied on every 8-second poll so no two refreshes look identical
+
+### Alive / Animated Features
+
+- 🌊 **Breathing animation** — a 20 fps sine-wave oscillator continuously shifts each heat blob's opacity by ±15%, making the map feel alive even between server polls
+- 🚗 **Ghost vehicles** — 12 emoji cars and buses (`🚗 🚕 🚙 🛻 🚌 🚐`) move along real Mysuru road segments every 200 ms, slowing down during rush hour to simulate real congestion
+- 💥 **Pulse rings** — high-intensity zones (>65%) emit an animated expanding ring
+
+### Traffic Status Bar
+
+Every dashboard header shows a live status pill:
+
+| Pill | Multiplier | Label |
+|---|---|---|
+| `LIGHT` | < 1.2× | Traffic flowing freely |
+| `MODERATE` | 1.2–1.6× | Moderate flow |
+| `HEAVY` | 1.6–2.0× | Heavy congestion |
+| `SEVERE` | > 2.0× | Rush hour gridlock |
+
+A **heatmap legend panel** in the bottom-right of every map lists all active zones with their live intensity percentages.
 
 ---
 
@@ -35,6 +83,7 @@ ResQFlow is a full-stack web application that simulates an intelligent emergency
 ```
 ResQFlow/
 ├── app.py                            ← Main Flask backend
+├── ai_traffic.py                     ← AI traffic prediction & heatmap zones
 ├── seed_db.py                        ← Database seeding script (run once)
 ├── simulation_status.json            ← Live mission state (create as empty {})
 ├── README.md
@@ -44,9 +93,9 @@ ResQFlow/
     ├── login_dispatcher_service.html ← Themed dispatcher login
     ├── login_driver.html             ← Driver login
     ├── login_monitor.html            ← Monitor login
-    ├── dispatcher_map.html           ← Dispatch console with map
-    ├── driver_dashboard.html         ← Driver HUD with live navigation
-    └── monitor_dashboard.html        ← Station ops center
+    ├── dispatcher_map.html           ← Dispatch console with heatmap + ghost vehicles
+    ├── driver_dashboard.html         ← Driver HUD with live navigation + heatmap
+    └── monitor_dashboard.html        ← Station ops center with heatmap
 ```
 
 ---
@@ -169,6 +218,8 @@ python app.py
 http://127.0.0.1:5000
 ```
 
+Or visit the live deployment: [https://resqflow.onrender.com](https://resqflow.onrender.com)
+
 ---
 
 ## 👤 Login Credentials
@@ -195,39 +246,38 @@ Full credentials in **ResQFlow_Logins.xlsx**.
 
 ### As a Dispatcher
 
-1. Go to `http://127.0.0.1:5000`
+1. Go to the app (local or [live](https://resqflow.onrender.com))
 2. Click **DISPATCHER**
 3. Choose your service — **Medical**, **Fire**, or **Police**
 4. Log in with your dispatcher credentials
-5. The map shows all stations with vehicle availability
+5. The map shows all stations with vehicle availability and the **live traffic heatmap**
 6. Click anywhere on the map to mark the **incident location**
 7. Click **DISPATCH** — the system automatically selects the nearest available station
 8. The driver at that station receives an instant notification
 
 ### As a Driver
 
-1. Go to `http://127.0.0.1:5000`
-2. Click **DRIVER** and log in
-3. Wait on standby — a mission alert appears when dispatched
-4. Review the incident details and click **"LEFT THE STATION — CONFIRM"**
-5. Your vehicle moves along actual Mysuru roads to the incident location
+1. Go to the app and click **DRIVER**, then log in
+2. Wait on standby — a mission alert appears when dispatched
+3. Review the incident details and click **"LEFT THE STATION — CONFIRM"**
+4. Your vehicle moves along actual Mysuru roads to the incident location
+5. The **live heatmap** shows city congestion zones and ghost vehicle traffic around you
 6. Once arrived the status changes to **"AT INCIDENT LOCATION"**
-7. Perform your on-scene work
-8. Click **"LEAVE THE LOCATION"** when done
-9. Your vehicle follows the road back to base automatically
-10. Mission completes and vehicle count is restored at your station
+7. Click **"LEAVE THE LOCATION"** when done
+8. Your vehicle follows the road back to base automatically
+9. Mission completes and vehicle count is restored at your station
 
 ### As a Monitor
 
-1. Go to `http://127.0.0.1:5000`
-2. Click **MONITOR** and log in
-3. Your dashboard shows the real-time status of your station's unit
-4. When a mission is assigned to your station you see:
+1. Go to the app and click **MONITOR**, then log in
+2. Your dashboard shows the real-time status of your station's unit
+3. When a mission is assigned to your station you see:
    - Live vehicle position on the map
    - Speed and leg progress telemetry
    - Current mission phase
    - Activity log with timestamps
-5. All updates refresh every second automatically
+   - **Live traffic heatmap** with zone intensity legend
+4. All updates refresh every second automatically
 
 ---
 
@@ -254,6 +304,20 @@ Full credentials in **ResQFlow_Logins.xlsx**.
 
 ---
 
+## 📡 API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/traffic_zone` | GET | Legacy single-zone traffic state (used for route segment colouring) |
+| `/api/traffic_heatmap` | GET | Multi-zone heatmap data — all 10 hotspots with intensity, radius, rush/night flags |
+| `/get_status` | GET | Live mission simulation state |
+| `/get_route` | GET | Current leg waypoints for map rendering |
+| `/dispatch_action` | POST | Dispatcher triggers a new mission |
+| `/driver_start_mission` | POST | Driver confirms and starts simulation |
+| `/driver_leave_scene` | POST | Driver departs scene, triggers return leg |
+
+---
+
 ## 📌 Important Notes
 
 - Road routing uses the **free public OSRM API** — internet connection is required
@@ -261,10 +325,12 @@ Full credentials in **ResQFlow_Logins.xlsx**.
 - Only **one active mission** is supported at a time
 - Each dispatcher account is locked to their own service type only
 - No SUMO or any external simulation software required — fully web-native
+- The traffic heatmap is **heuristic-based** (time-of-day + zone density), not live GPS data
 
 ---
 
 ## 🧑‍💻 Author
 
 Built as a Web Development course project.  
-**ResQFlow** — Emergency Response System · Mysuru City
+**ResQFlow** — Emergency Response System · Mysuru City  
+🌐 [https://resqflow.onrender.com](https://resqflow.onrender.com)
