@@ -9,12 +9,12 @@ app = Flask(__name__)
 app.secret_key = 'resqflow_secret_key_999'
 
 DB_CONFIG = {
-    "host":               "mysql-6d28c4a-joysterpinto2006-e0e1.e.aivencloud.com",
-    "user":               "avnadmin",
-    "password":           "AVNS_7fy1STtHEisONfFxDs_",
-    "database":           "defaultdb",
-    "port":               16149,
-    "ssl_disabled":       False,
+    "host":               os.getenv("MYSQLHOST", "localhost"),
+    "user":               os.getenv("MYSQLUSER", "root"),
+    "password":           os.getenv("MYSQLPASSWORD", ""),
+    "database":           os.getenv("MYSQLDATABASE", "defaultdb"),
+    "port":               int(os.getenv("MYSQLPORT", "3306")),
+    "ssl_disabled":       True,  # Railway MySQL doesn't require SSL
     "connection_timeout": 10,
 }
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
