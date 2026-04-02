@@ -9,25 +9,22 @@ app = Flask(__name__)
 app.secret_key = 'resqflow_secret_key_999'
 
 # ── DB CONFIG ─────────────────────────────────────────────────────────────────
-# Reads from environment variables so the same code works both locally
-# (falls back to localhost/root) and on Render.com with Aiven MySQL.
-#
-# Aiven requires SSL. When DB_HOST env var is set (i.e. we are on Render),
-# ssl_disabled is automatically set to False.  Set DB_SSL_CA to the path of
-# the Aiven CA certificate if you download it; otherwise ssl_verify_cert is
-# left False so the connection still works without the cert file.
-
-_is_remote = bool(os.environ.get("DB_HOST"))   # True when running on Render
+# Credentials are read ONLY from environment variables — never hardcoded.
+# Set these in Render dashboard > Environment > Add Environment Variable:
+#   DB_HOST     = mysql-6d28c4a-joysterpinto2006-e0e1.e.aivencloud.com
+#   DB_USER     = avnadmin
+#   DB_PASSWORD = (your Aiven password)
+#   DB_NAME     = defaultdb
+#   DB_PORT     = 16149
 
 DB_CONFIG = {
-    "host":               os.environ.get("DB_HOST", "localhost"),
-    "user":               os.environ.get("DB_USER", "root"),
-    "password":           os.environ.get("DB_PASSWORD", "106975123"),
-    "database":           os.environ.get("DB_NAME", "resqflow"),
+    "host":               os.environ.get("DB_HOST",     "localhost"),
+    "user":               os.environ.get("DB_USER",     "root"),
+    "password":           os.environ.get("DB_PASSWORD", ""),
+    "database":           os.environ.get("DB_NAME",     "resqflow"),
     "port":               int(os.environ.get("DB_PORT", 3306)),
     "connection_timeout": 10,
-    # SSL — required by Aiven, harmless to include locally (just disabled)
-    "ssl_disabled":       not _is_remote,
+    "ssl_disabled":       not bool(os.environ.get("DB_HOST")),  # SSL on when remote
 }
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 STATUS_FILE = os.path.join(BASE_DIR, "simulation_status.json")
